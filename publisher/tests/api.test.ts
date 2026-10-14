@@ -190,10 +190,12 @@ async function main() {
   const ap = await ADM.post(`/api/admin/review/${bookId}`, { action: "approve" });
   ok(ap.status === 200 && ap.data.status === "PUBLISHED", "admin approves → Published", ap.data);
   const live = (await rNG.get("/api/books")).data.books.find((b: any) => b.title === "The Lighthouse Keeper");
-  ok(live && live.author === "Ada Okafor" && live.category === "Classic Fiction" && live.price.currency === "NGN" && live.price.amountMinor === 15000000 && live.coverUrl?.includes(`/api/covers/${bookId}`), "book is live in Reader with price, author, category and cover", live);
+  ok(live && live.author === "Ada Okafor" && live.category === "Classic Fiction" && live.price.currency === "NGN" && live.price.amountMinor === 15000000 && live.coverUrl === `/api/books/${live.id}/cover`, "book is live in Reader with price, author, category and cover", live);
   const det = (await rNG.get(`/api/books/${live.id}`)).data;
   ok(det.book.publisher === "Okafor House" && det.book.description.includes("keeper of the light") && det.book.chapterCount >= 2, "Reader details: publisher, description, chapters", det.book);
-  ok((await new Client().req("GET", live.coverUrl.replace(/^https?:\/\/[^/]+/, ""))).status === 200, "approved cover is publicly served for the Reader");
+  const rcover = await new Client(READER).req("GET", live.coverUrl);
+  ok(rcover.status === 200 && (rcover.res.headers.get("content-type") ?? "").startsWith("image/"), "the Reader serves the approved cover itself (proxied from the Publisher), so phones can load it");
+  ok((await new Client().req("GET", `/api/covers/${bookId}`)).status === 200, "the Publisher's own cover endpoint serves the approved cover publicly");
   ok((await A.get("/api/notifications")).data.notifications.some((n: any) => n.type === "BOOK_APPROVED") && (await A.get("/api/notifications")).data.notifications.some((n: any) => n.type === "BOOK_PUBLISHED"), "approved + published notifications");
   const bk = (await A.get("/api/books?status=APPROVED,PUBLISHED")).data;
   ok(bk.books.length === 1 && bk.counts.PUBLISHED === 1, "My Books → Approved lists it");

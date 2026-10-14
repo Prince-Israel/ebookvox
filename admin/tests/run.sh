@@ -2,6 +2,8 @@
 # Full ecosystem run: Reader + Publisher + Admin (separate databases) + mock Paystack, all as production builds.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Tests must never send real email or call real services, whatever the developer's .env contains.
+export SMTP_HOST="" SMTP_USER="" SMTP_PASS="" AZURE_SPEECH_KEY="" AZURE_SPEECH_REGION="" GOOGLE_CLIENT_ID="" APPLE_CLIENT_ID=""
 ROOT="$(cd .. && pwd)"
 export READER_PORT=3130 PUB_PORT=3340 ADMIN_PORT=3350
 RS=test-admin-reader-secret-0123456789ab PS=test-admin-publisher-secret-0123456789

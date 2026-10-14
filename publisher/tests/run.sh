@@ -2,6 +2,8 @@
 # Full cross-platform integration run: Publisher + Reader (separate databases) + mock Paystack.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Tests must never send real email or call real services, whatever the developer's .env contains.
+export SMTP_HOST="" SMTP_USER="" SMTP_PASS="" AZURE_SPEECH_KEY="" AZURE_SPEECH_REGION="" GOOGLE_CLIENT_ID="" APPLE_CLIENT_ID=""
 ROOT="$(cd .. && pwd)"
 export PUB_PORT=3340 READER_PORT=3130
 rm -f prisma/test.db* "$ROOT/prisma/test-pub.db"*

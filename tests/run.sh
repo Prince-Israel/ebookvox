@@ -2,6 +2,8 @@
 # Full integration run: isolated SQLite DB, mock Paystack, production build of the app.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Tests must never send real email or call real services, whatever the developer's .env contains.
+export SMTP_HOST="" SMTP_USER="" SMTP_PASS="" AZURE_SPEECH_KEY="" AZURE_SPEECH_REGION="" GOOGLE_CLIENT_ID="" APPLE_CLIENT_ID=""
 export DATABASE_URL="file:./test.db"
 export APP_URL="http://localhost:3100"
 export PAYSTACK_SECRET_KEY="sk_test_mock"
