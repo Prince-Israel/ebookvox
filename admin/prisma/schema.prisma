@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  name               String
+  phone              String?
+  role               String // SUPER_ADMIN | OPERATIONS | CONTENT | FINANCE | SUPPORT
+  permissions        String    @default("[]") // JSON array of permission keys (ignored for SUPER_ADMIN)
+  status             String    @default("ACTIVE") // ACTIVE | SUSPENDED
+  jobTitle           String    @default("")
+  bio                String    @default("")
+  passwordHash       String
+  mustChangePassword Boolean   @default(false)
+  theme              String    @default("system")
+  avatarUpdatedAt    DateTime?
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  createdById        String?
+
+  avatar        AdminAvatar?
+  sessions      AdminSession[]
+  notifications AdminNotification[]
+}
+
+model AdminAvatar {
+  adminId String    @id
+  mime    String
+  data    Bytes
+  admin   AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+model AdminSession {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  adminId   String
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  admin     AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+// Actor details are copied in so the trail survives deleting an admin.
+model ActivityLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actorName   String
+  actorRole   String
+  action      String
+  targetType  String
+  targetId    String?
+  targetLabel String?
+  details     String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model AdminNotification {
+  id        String    @id @default(cuid())
+  adminId   String
+  type      String
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  admin     AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, readAt])
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// Where we are in each service's event feed.
+model ServiceCursor {
+  service      String   @id
+  lastId       Int      @default(0)
+  lastPolledAt DateTime @default(now())
+  lastError    String?
+}
+
+// Technical detail of service failures (the UI only shows friendly messages).
+model ServiceErrorLog {
+  id        String   @id @default(cuid())
+  service   String
+  operation String
+  message   String
+  createdAt DateTime @default(now())
+}
+
+// Which support conversations this admin team has already looked at (drives the unread badge on "Support").
+model TicketRead {
+  service String
+  ticketId String
+  readAt  DateTime @default(now())
+
+  @@id([service, ticketId])
+}

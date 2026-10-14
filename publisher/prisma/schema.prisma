@@ -1,0 +1,253 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// SQLite for zero-config local use; switch provider to "postgresql" for production.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  emailVerifiedAt DateTime?
+  passwordHash    String
+  firstName       String
+  lastName        String
+  publisherName   String
+  bio             String    @default("")
+  phone           String
+  phoneCountry    String
+  country         String
+  currency        String // primary currency: NGN | USD | GBP | EUR
+  role            String    @default("PUBLISHER") // PUBLISHER | ADMIN
+  status          String    @default("ACTIVE") // ACTIVE | SUSPENDED | DELETED
+  suspendedAt     DateTime?
+  avatarUpdatedAt DateTime?
+  theme           String    @default("system")
+  createdAt       DateTime  @default(now())
+
+  avatar        Avatar?
+  sessions      Session[]
+  tokens        AuthToken[]
+  books         Book[]
+  sales         Sale[]
+  walletTx      WalletTx[]
+  withdrawals   Withdrawal[]
+  paymentMethod PaymentMethod?
+  notifications Notification[]
+  tickets       Ticket[]
+}
+
+model Avatar {
+  userId String @id
+  mime   String
+  data   Bytes
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuthToken {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String // VERIFY_EMAIL | RESET_PASSWORD
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  toEmail   String
+  subject   String
+  body      String
+  sent      Boolean  @default(false)
+  error     String?
+  createdAt DateTime @default(now())
+}
+
+model Book {
+  id              String    @id @default(cuid())
+  publisherId     String
+  title           String
+  author          String
+  category        String
+  description     String
+  isFree          Boolean   @default(false)
+  status          String    @default("DRAFT") // DRAFT | REVIEWING | APPROVED | REJECTED | PUBLISHED | REMOVED
+  rejectionReason String?
+  fileName        String?
+  fileKind        String?
+  fileSize        Int       @default(0)
+  content         String    @default("")
+  totalChars      Int       @default(0)
+  coverVersion    Int       @default(0)
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  publishedAt     DateTime?
+  syncError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  publisher User        @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+  prices    BookPrice[]
+  cover     Cover?
+  file      BookFile?
+  sales     Sale[]
+
+  @@index([publisherId, status])
+}
+
+model BookPrice {
+  id          String @id @default(cuid())
+  bookId      String
+  currency    String
+  amountMinor Int
+  book        Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, currency])
+}
+
+model Cover {
+  bookId String @id
+  mime   String
+  data   Bytes
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+}
+
+model BookFile {
+  bookId String @id
+  mime   String
+  data   Bytes
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+}
+
+// One row per verified Reader purchase. readerOrderId makes webhook delivery idempotent.
+model Sale {
+  id               String   @id @default(cuid())
+  number           String   @unique
+  publisherId      String
+  bookId           String
+  readerOrderId    String   @unique
+  buyerLabel       String
+  currency         String
+  grossMinor       Int
+  publisherMinor   Int // 85%
+  platformMinor    Int // 15%
+  status           String   @default("PAID")
+  paidAt           DateTime
+  createdAt        DateTime @default(now())
+  publisher        User     @relation(fields: [publisherId], references: [id])
+  book             Book     @relation(fields: [bookId], references: [id])
+  tx               WalletTx?
+
+  @@index([publisherId, paidAt])
+}
+
+// Append-only ledger. Available balance per currency = SUM(amountMinor).
+model WalletTx {
+  id           String      @id @default(cuid())
+  publisherId  String
+  currency     String
+  type         String // SALE_CREDIT | WITHDRAWAL_HOLD | WITHDRAWAL_REFUND | PAYOUT_COMPLETED
+  amountMinor  Int // signed
+  description  String
+  saleId       String?     @unique
+  withdrawalId String?
+  createdAt    DateTime    @default(now())
+  publisher    User        @relation(fields: [publisherId], references: [id])
+  sale         Sale?       @relation(fields: [saleId], references: [id])
+
+  @@index([publisherId, currency])
+}
+
+model Withdrawal {
+  id             String    @id @default(cuid())
+  number         String    @unique
+  publisherId    String
+  currency       String
+  amountMinor    Int
+  method         String // BANK | PAYPAL
+  methodSnapshot String // JSON of payout destination at request time
+  status         String    @default("PROCESSING") // PROCESSING | PAID | REJECTED
+  payoutReference String?
+  processedBy    String?
+  reason         String?
+  idempotencyKey String?   @unique
+  requestedAt    DateTime  @default(now())
+  processedAt    DateTime?
+  publisher      User      @relation(fields: [publisherId], references: [id])
+
+  @@index([publisherId])
+}
+
+model PaymentMethod {
+  userId        String   @id
+  type          String // BANK | PAYPAL
+  bankCode      String?
+  bankName      String?
+  accountName   String?
+  accountNumber String?
+  paypalEmail   String?
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+model Ticket {
+  id        String          @id @default(cuid())
+  userId    String
+  subject   String
+  status    String          @default("OPEN") // OPEN | WAITING_PUBLISHER | WAITING_ADMIN | CLOSED
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  userSeenAt DateTime?
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  TicketMessage[]
+}
+
+model TicketMessage {
+  id         String   @id @default(cuid())
+  ticketId   String
+  authorId   String
+  authorRole String // PUBLISHER | ADMIN
+  body       String
+  createdAt  DateTime @default(now())
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model ServiceEvent {
+  id        Int      @id @default(autoincrement())
+  type      String
+  payload   String
+  createdAt DateTime @default(now())
+}
+
+model PlatformConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

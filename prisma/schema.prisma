@@ -1,0 +1,284 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// SQLite keeps local setup zero-config. For production switch `provider` to
+// "postgresql", point DATABASE_URL at your Postgres instance and run
+// `prisma db push` (no other code changes are required).
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  emailVerifiedAt DateTime?
+  passwordHash    String?
+  firstName       String
+  lastName        String
+  phone           String?   // E.164, e.g. +2348012345678
+  phoneCountry    String?   // ISO-3166 alpha-2 of the dialing code
+  country         String    // ISO-3166 alpha-2
+  currency        String    // NGN | GBP | EUR | USD
+  role            String    @default("USER") // USER | ADMIN
+  status          String    @default("ACTIVE") // ACTIVE | SUSPENDED | DELETED
+  suspendedAt     DateTime?
+  avatarUpdatedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // settings
+  defaultVoice    String    @default("en-NG-EzinneNeural")
+  defaultSpeed    Float     @default(1)
+  autoPlay        Boolean   @default(false)
+  theme           String    @default("system") // light | dark | system
+  notifyPurchase  Boolean   @default(true)
+  notifyBooks     Boolean   @default(true)
+  notifySupport   Boolean   @default(true)
+
+  avatar          Avatar?
+  accounts        Account[]
+  sessions        Session[]
+  tokens          AuthToken[]
+  library         UserBook[]
+  orders          Order[]
+  notifications   Notification[]
+  tickets         Ticket[]
+  documents       Document[]
+}
+
+model Avatar {
+  userId    String   @id
+  mime      String
+  data      Bytes
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                String @id @default(cuid())
+  userId            String
+  provider          String // google | apple
+  providerAccountId String
+  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  userId     String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AuthToken {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String // VERIFY_EMAIL | RESET_PASSWORD
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OAuthState {
+  state        String   @id
+  provider     String
+  nonce        String
+  codeVerifier String
+  expiresAt    DateTime
+}
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  toEmail   String
+  subject   String
+  body      String
+  sent      Boolean  @default(false)
+  error     String?
+  createdAt DateTime @default(now())
+}
+
+model Publisher {
+  id         String @id @default(cuid())
+  externalId String @unique
+  name       String
+  books      Book[]
+}
+
+model Book {
+  id              String    @id @default(cuid())
+  externalId      String?   @unique // id on the Publisher platform
+  title           String
+  author          String
+  category        String
+  description     String
+  language        String    @default("en")
+  publisherId     String
+  coverUrl        String?
+  coverHue        Int       @default(25)
+  status          String    @default("PENDING") // PENDING | APPROVED | REJECTED | ARCHIVED
+  rejectionReason String?
+  isFree          Boolean   @default(false)
+  totalChars      Int       @default(0)
+  chapterCount    Int       @default(0)
+  createdAt       DateTime  @default(now())
+  approvedAt      DateTime?
+  publisher       Publisher @relation(fields: [publisherId], references: [id])
+  prices          BookPrice[]
+  chapters        Chapter[]
+  userBooks       UserBook[]
+  orders          Order[]
+
+  @@index([status, isFree])
+}
+
+model BookPrice {
+  id          String @id @default(cuid())
+  bookId      String
+  currency    String
+  amountMinor Int
+  book        Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, currency])
+}
+
+model Chapter {
+  id        String @id @default(cuid())
+  bookId    String
+  index     Int
+  title     String
+  content   String
+  startChar Int
+  charCount Int
+  book      Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, index])
+}
+
+model UserBook {
+  id             String    @id @default(cuid())
+  userId         String
+  bookId         String
+  source         String // FREE | PURCHASE
+  orderId        String?
+  addedAt        DateTime  @default(now())
+  lastOpenedAt   DateTime?
+  chapterIndex   Int       @default(0)
+  paragraphIndex Int       @default(0)
+  audioTime      Float     @default(0)
+  percent        Float     @default(0)
+  completedAt    DateTime?
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book           Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+}
+
+model Order {
+  id               String    @id @default(cuid())
+  number           String    @unique
+  userId           String
+  bookId           String
+  amountMinor      Int
+  currency         String
+  reference        String    @unique
+  status           String    @default("PENDING") // PENDING | PAID | FAILED
+  paystackTxId     String?
+  channel          String?
+  failureReason    String?
+  paidAt           DateTime?
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id])
+  book             Book      @relation(fields: [bookId], references: [id])
+
+  @@index([userId])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String // PURCHASE_SUCCESS | PAYMENT_FAILED | BOOK_ADDED | NEW_BOOK | SUPPORT_REPLY | ACCOUNT_UPDATE
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+model Ticket {
+  id        String          @id @default(cuid())
+  userId    String
+  subject   String
+  status    String          @default("OPEN") // OPEN | WAITING_USER | CLOSED
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  userSeenAt DateTime?
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  TicketMessage[]
+
+  @@index([userId])
+}
+
+model TicketMessage {
+  id         String   @id @default(cuid())
+  ticketId   String
+  authorId   String
+  authorRole String // USER | ADMIN
+  body       String
+  createdAt  DateTime @default(now())
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  kind      String // TEXT | PDF | DOCX | TXT
+  text      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// Reliable delivery of events to the Publisher platform (sales, book decisions). Written in the same
+// transaction as the change that caused it, then delivered with retries.
+model OutboxEvent {
+  id            String    @id @default(cuid())
+  type          String
+  payload       String
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  deliveredAt   DateTime?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+
+  @@index([deliveredAt, nextAttemptAt])
+}
+
+// Append-only feed the Admin platform pulls (cursor = autoincrement id) to raise notifications.
+model ServiceEvent {
+  id        Int      @id @default(autoincrement())
+  type      String
+  payload   String
+  createdAt DateTime @default(now())
+}
+
+// Settings pushed from the Admin platform (e.g. default voice).
+model PlatformConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
