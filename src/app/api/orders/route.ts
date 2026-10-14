@@ -1,3 +1,4 @@
+import { coverSrc } from "@/lib/books";
 import { db } from "@/lib/db";
 import { route } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
@@ -8,7 +9,7 @@ export const GET = route(async () => {
   return {
     orders: orders.map((o) => ({
       id: o.id, number: o.number, reference: o.reference, status: o.status, amountMinor: o.amountMinor, currency: o.currency,
-      createdAt: o.createdAt, paidAt: o.paidAt, failureReason: o.failureReason, channel: o.channel, book: o.book,
+      createdAt: o.createdAt, paidAt: o.paidAt, failureReason: o.failureReason, channel: o.channel, book: { ...o.book, coverUrl: coverSrc(o.book.id, o.book.coverUrl) },
     })),
   };
 });

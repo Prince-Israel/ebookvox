@@ -1,0 +1,33 @@
+{
+	"appId": "app.ebookvox.reader",
+	"appName": "Ebookvox",
+	"webDir": "mobile-www",
+	"server": {
+		"url": "http://localhost:3230",
+		"cleartext": true,
+		"allowNavigation": [
+			"checkout.paystack.com",
+			"*.paystack.com",
+			"accounts.google.com",
+			"appleid.apple.com"
+		]
+	},
+	"ios": {
+		"contentInset": "never",
+		"backgroundColor": "#fbf5ec"
+	},
+	"android": {
+		"backgroundColor": "#fbf5ec",
+		"allowMixedContent": false
+	},
+	"plugins": {
+		"SplashScreen": {
+			"backgroundColor": "#3a261c",
+			"launchShowDuration": 1500
+		}
+	},
+	"packageClassList": [
+		"SplashScreenPlugin",
+		"StatusBarPlugin"
+	]
+}

@@ -26,6 +26,9 @@ export async function priceIn(b: Priced, currency: string) {
   return { amountMinor, currency, rate, baseCurrency: base.currency, baseAmountMinor: base.amountMinor };
 }
 
+/** Same-origin cover address (the Reader proxies the publisher's image, so every device can load it). */
+export const coverSrc = (id: string, coverUrl: string | null) => (coverUrl ? `/api/books/${id}/cover` : null);
+
 export async function serializeBook(b: NonNullable<BookWithRels>, currency: string) {
   const price = await priceIn(b, currency);
   return {
@@ -36,7 +39,7 @@ export async function serializeBook(b: NonNullable<BookWithRels>, currency: stri
     description: b.description,
     language: b.language,
     publisher: b.publisher.name,
-    coverUrl: b.coverUrl,
+    coverUrl: coverSrc(b.id, b.coverUrl),
     coverHue: b.coverHue,
     isFree: b.isFree,
     chapterCount: b.chapterCount,

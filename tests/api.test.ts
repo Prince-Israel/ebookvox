@@ -325,6 +325,15 @@ async function main() {
   const after = (await u.get("/api/books")).data.books.find((b: any) => b.title.startsWith("Publisher Test"));
   ok(after && after.price.currency === "NGN" && after.price.amountMinor === 150000, "approved publisher book appears automatically with correct price");
   ok((await u.get("/api/notifications")).data.unread === before + 1, "users get a New book notification");
+  // covers are served through the Reader so phones/emulators (which can't reach the publisher's address) can load them
+  const cv = await pubReq(book({ externalId: `cover-${stamp}`, title: `Cover Test ${stamp}`, coverUrl: `${BASE}/icons/icon-512.png` }));
+  const cvj = await cv.json();
+  await admin.post(`/api/admin/books/${cvj.id}`, { action: "approve" });
+  const cvBook = (await u.get("/api/books")).data.books.find((b: any) => b.id === cvj.id);
+  ok(cvBook?.coverUrl === `/api/books/${cvj.id}/cover`, "book list exposes a same-origin cover address, not the publisher's host", cvBook?.coverUrl);
+  const cvRes = await fetch(BASE + cvBook.coverUrl);
+  ok(cvRes.status === 200 && (cvRes.headers.get("content-type") ?? "").startsWith("image/") && (await cvRes.arrayBuffer()).byteLength > 500, "cover proxy returns the image bytes");
+  ok((await fetch(`${BASE}/api/books/nope/cover`)).status === 404, "cover proxy 404s for unknown books");
   const resub = await pubReq(book({ title: `Publisher Test ${stamp} v2` }));
   ok((await resub.json()).created === false, "re-submission updates the same book");
   ok(!(await u.get("/api/books")).data.books.some((b: any) => b.id === cj.id), "edited book goes back to review");

@@ -1,3 +1,4 @@
+import { coverSrc } from "@/lib/books";
 import { db } from "@/lib/db";
 import { route } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
@@ -10,7 +11,7 @@ export const GET = route(async () => {
     title: r.book.title,
     author: r.book.author,
     category: r.book.category,
-    coverUrl: r.book.coverUrl,
+    coverUrl: coverSrc(r.book.id, r.book.coverUrl),
     coverHue: r.book.coverHue,
     source: r.source,
     percent: r.percent,
