@@ -18,8 +18,11 @@ const section = (s: string) => console.log(`\n${s}`);
 
 class Client {
   jar = new Map<string, string>();
+  /** The visitor's location, as a CDN would report it. Prices and checkout follow this, not the account. */
+  constructor(public country = "NG") {}
   async req(method: string, path: string, body?: unknown, extra: RequestInit = {}) {
     const headers = new Headers(extra.headers);
+    headers.set("cf-ipcountry", this.country);
     if (this.jar.size) headers.set("cookie", [...this.jar].map(([k, v]) => `${k}=${v}`).join("; "));
     let payload: BodyInit | undefined;
     if (body instanceof FormData) payload = body;
@@ -77,7 +80,7 @@ async function main() {
   ok((await u.get("/api/me")).data.user.email === `ng.${stamp}@example.com`, "session cookie authenticates /api/me");
   ok((await signup(new Client(), "ng", "NG")).status === 409, "duplicate email rejected");
 
-  const gb = new Client(), us = new Client(), de = new Client();
+  const gb = new Client("GB"), us = new Client("US"), de = new Client("DE");
   ok((await signup(gb, "gb", "GB", "GB", "7700900123")).data?.user?.currency === "GBP", "UK → GBP");
   ok((await signup(us, "us", "US", "US", "2025550123")).data?.user?.currency === "USD", "US → USD");
   ok((await signup(de, "de", "DE", "DE", "15112345678")).data?.user?.currency === "EUR", "Germany → EUR");
@@ -213,7 +216,12 @@ async function main() {
   ok(free.length >= 5 && paid.length >= 4, `free (${free.length}) and paid (${paid.length}) books both present`);
   ok(paid.every((b: any) => b.price?.currency === "NGN" && b.price.amountMinor > 0), "paid books priced in the user's currency (NGN)");
   const gl = (await gb.get("/api/books")).data, usl = (await us.get("/api/books")).data, del = (await de.get("/api/books")).data;
-  ok(gl.books.filter((b: any) => !b.isFree).every((b: any) => b.price.currency === "GBP"), "UK sees GBP prices");
+  ok(gl.books.filter((b: any) => !b.isFree).every((b: any) => b.price.currency === "GBP" && b.price.amountMinor > 0), "UK sees GBP prices");
+  const rateOf = (c: string) => { const a = paid[0].price.amountMinor, b = gl.books.find((x: any) => x.id === paid[0].id).price.amountMinor; return c === "GBP" ? b / a : 0; };
+  ok(rateOf("GBP") > 0.0001 && rateOf("GBP") < 0.01, "GBP price is the NGN list price converted at the international rate (not a separately typed price)", rateOf("GBP"));
+  const travel = new Client("GB");
+  await travel.post("/api/auth/signin", { email, password: pw });
+  ok((await travel.get("/api/books")).data.currency === "GBP", "a Nigerian account browsing from the UK is priced in GBP (current location, not account currency)");
   ok(usl.books.filter((b: any) => !b.isFree).every((b: any) => b.price.currency === "USD"), "US sees USD prices");
   ok(del.books.filter((b: any) => !b.isFree).every((b: any) => b.price.currency === "EUR"), "Germany sees EUR prices");
   ok((await u.get("/api/books?type=free")).data.books.every((b: any) => b.isFree), "free filter works");
@@ -294,13 +302,17 @@ async function main() {
   const gv2 = await gb.post("/api/checkout", { bookId: pb.id });
   const gOrder = await db.order.findUnique({ where: { reference: gv2.data.reference } });
   ok(gOrder?.currency === "GBP", "UK checkout is created in GBP", gv2.data);
+  const ngnPrice = paid.find((b: any) => b.id === pb.id).price.amountMinor;
+  ok(gOrder?.baseCurrency === "NGN" && gOrder.baseAmountMinor === ngnPrice && (gOrder.fxRate ?? 0) > 0, "order records the publisher's list price and the locked exchange rate", gOrder);
+  ok(gOrder!.feeMinor === Math.floor((gOrder!.amountMinor * 15) / 100), "order carries the 15% platform commission in the currency the reader paid", gOrder);
 
   // ---------------------------------------------------------------- publisher → admin → reader
   section("Publisher ingestion → admin approval → Reader");
-  const book = (over: object = {}) => ({ externalId: `pub-${stamp}`, publisherId: "pub-1", publisherName: "Lagos Press", title: `Publisher Test ${stamp}`, author: "A. Writer", category: "Poetry", description: "A collection delivered from the Publisher platform.", isFree: false, prices: { NGN: 150000, GBP: 399, EUR: 449, USD: 499 }, chapters: [{ title: "One", content: "First poem.\n\nSecond stanza." }, { title: "Two", content: "Another poem." }], ...over });
+  const book = (over: object = {}) => ({ externalId: `pub-${stamp}`, publisherId: "pub-1", publisherName: "Lagos Press", title: `Publisher Test ${stamp}`, author: "A. Writer", category: "Poetry", description: "A collection delivered from the Publisher platform.", isFree: false, baseCurrency: "NGN", prices: { NGN: 150000 }, chapters: [{ title: "One", content: "First poem.\n\nSecond stanza." }, { title: "Two", content: "Another poem." }], ...over });
   const pubReq = (b: unknown, key = "test-publisher-key") => fetch(BASE + "/api/publisher/books", { method: "POST", headers: { "content-type": "application/json", "x-publisher-key": key }, body: JSON.stringify(b) });
   ok((await pubReq(book(), "wrong")).status === 401, "publisher API rejects bad key");
-  ok((await pubReq(book({ prices: { NGN: 100 } }))).status === 400, "paid book must carry all four currency prices");
+  ok((await pubReq(book({ prices: {} }))).status === 400, "paid book must carry a price");
+  ok((await pubReq(book({ baseCurrency: "GBP", prices: { NGN: 100 } }))).status === 400, "price must be in the declared publisher currency");
   const created = await pubReq(book());
   const cj = await created.json();
   ok(created.status === 201 && cj.status === "PENDING", "publisher book accepted as PENDING", cj);
@@ -358,6 +370,15 @@ async function main() {
   ok(all.data.unread === 0, "mark all read → unread = 0");
   ok((await gb.get("/api/notifications")).data.notifications.every((n: any) => true) && (await gb.post("/api/notifications/read", { ids: [one1.id] })).data.unread >= 0, "can't mark another user's notification (no-op)");
   ok((await u.get("/api/notifications")).data.notifications.some((n: any) => n.id === one1.id && n.readAt), "read state persisted");
+
+  // clear all notifications
+  const nBefore = (await u.get("/api/notifications")).data.notifications.length;
+  const gbN = (await gb.get("/api/notifications")).data.notifications.length;
+  ok((await new Client().req("DELETE", "/api/notifications")).status === 401, "clearing notifications requires login");
+  const cleared = await u.req("DELETE", "/api/notifications");
+  const nAfter = (await u.get("/api/notifications")).data;
+  ok(nBefore > 0 && cleared.status === 200 && nAfter.notifications.length === 0 && nAfter.unread === 0, "Clear all removes every notification for the user", { nBefore, nAfter });
+  ok((await gb.get("/api/notifications")).data.notifications.length === gbN, "clearing one user's notifications leaves other users' untouched");
 
   // ---------------------------------------------------------------- security
   section("Security");

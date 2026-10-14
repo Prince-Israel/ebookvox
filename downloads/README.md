@@ -1,0 +1,24 @@
+# Ebookvox Reader — downloads
+
+| File | For | Notes |
+|---|---|---|
+| `Ebookvox-Reader-android.apk` | Android phones/tablets | Debug-signed, installable directly. |
+| `Ebookvox-Reader-ios-unsigned.ipa` | iPhone/iPad | **Unsigned.** Apple only runs signed apps, so install it with a sideloading tool that signs it with your Apple ID (AltStore, Sideloadly) — or open `ios/App` in Xcode and run it with your own team. |
+| `Ebookvox-Reader-ios-simulator.zip` | Xcode iOS Simulator | Unzip and drag `App.app` onto a running simulator. Loads `http://localhost:3230`. |
+
+## Where the app gets its content
+
+The mobile app is a native shell around the Reader web app, so it needs the Reader server to be reachable.
+These builds point at `http://192.168.3.238:3230` (the development Mac on its Wi‑Fi network), so the phone must be on
+the same network with the Reader running (`npx next start -p 3230`).
+
+To build against your deployed (https) server instead:
+
+```bash
+EBOOKVOX_URL=https://reader.your-domain.com npx cap sync
+# Android (JDK 21):  cd android && ./gradlew assembleDebug   → android/app/build/outputs/apk/debug/app-debug.apk
+# iOS:  cd ios/App && xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos \
+#         CODE_SIGNING_ALLOWED=NO build
+```
+
+For a Play Store release use `./gradlew bundleRelease` with your own signing key; for the App Store archive and sign in Xcode.

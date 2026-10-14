@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { Bell, CheckCheck } from "lucide-react";
+import { Bell, CheckCheck, Trash2 } from "lucide-react";
 import { Async, Button, EmptyState, PageTitle, Skeleton, cx, useToast, when } from "@/components/ui";
 import { useAdmin } from "@/components/AdminContext";
 import { api, ApiFailure, useApi } from "@/lib/client";
@@ -17,10 +17,19 @@ export default function NotificationsPage() {
       s.setData((d) => d && { notifications: d.notifications.map((n) => (body.all || body.ids?.includes(n.id) ? { ...n, readAt: n.readAt ?? new Date().toISOString() } : n)), unread: r.unread });
     } catch (e) { toast((e as ApiFailure).message, "error"); }
   }
+  async function clearAll() {
+    if (!window.confirm("Clear all notifications? This can't be undone.")) return;
+    try {
+      await api("/api/notifications", { method: "DELETE" });
+      setUnread(0);
+      s.setData(() => ({ notifications: [], unread: 0 }));
+      toast("Notifications cleared.");
+    } catch (e) { toast((e as ApiFailure).message, "error"); }
+  }
   const unread = s.data?.unread ?? 0;
   return (
     <div className="mx-auto max-w-3xl">
-      <PageTitle title="Notifications" sub={s.data ? (unread ? `${unread} unread` : "You're all caught up") : undefined} action={unread > 0 ? <Button variant="secondary" size="sm" onClick={() => mark({ all: true })}><CheckCheck className="size-4" /> Mark all read</Button> : undefined} />
+      <PageTitle title="Notifications" sub={s.data ? (unread ? `${unread} unread` : "You're all caught up") : undefined} action={s.data?.notifications.length ? <div className="flex gap-2">{unread > 0 && <Button variant="secondary" size="sm" onClick={() => mark({ all: true })}><CheckCheck className="size-4" /> Mark all read</Button>}<Button variant="secondary" size="sm" onClick={clearAll}><Trash2 className="size-4" /> Clear all</Button></div> : undefined} />
       <Async state={s} skeleton={<div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-20" />)}</div>} isEmpty={(d) => d.notifications.length === 0} empty={<EmptyState icon={<Bell className="size-8" />} title="No notifications yet." body="New users, publishers, submissions, sales, payouts and support messages will appear here." />}>
         {(d) => <ul className="space-y-2.5">{d.notifications.map((n) => (
           <li key={n.id}><button onClick={async () => { if (!n.readAt) await mark({ ids: [n.id] }); if (n.link) router.push(n.link); }} className={cx("flex w-full items-start gap-4 rounded-3xl border p-4 text-left transition hover:-translate-y-0.5", n.readAt ? "border-line bg-surface" : "border-accent/50 bg-accent-soft")}>

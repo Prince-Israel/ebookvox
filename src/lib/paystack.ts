@@ -69,12 +69,14 @@ export async function settleOrder(reference: string): Promise<{ status: "PAID" |
         await enqueue("sale.completed", {
           orderId: order.id, orderNumber: order.number, bookExternalId: order.book.externalId, publisherExternalId: order.book.publisher.externalId,
           buyer: `${order.user.firstName} ${order.user.lastName.slice(0, 1)}.`.trim(), amountMinor: order.amountMinor, currency: order.currency, paidAt: new Date().toISOString(),
+          // The publisher is paid in their own currency: the list price they set, less the platform's 15%.
+          baseCurrency: order.baseCurrency ?? order.currency, baseAmountMinor: order.baseAmountMinor ?? order.amountMinor,
         }, t);
       return true;
     });
     if (done) {
       void flushOutbox().catch(() => {});
-      await emitEvent("order.paid", { orderId: order.id, number: order.number, buyer: `${order.user.firstName} ${order.user.lastName}`, book: order.book.title, amountMinor: order.amountMinor, currency: order.currency, publisher: order.book.publisher.name });
+      await emitEvent("order.paid", { orderId: order.id, number: order.number, buyer: `${order.user.firstName} ${order.user.lastName}`, book: order.book.title, amountMinor: order.amountMinor, currency: order.currency, publisher: order.book.publisher.name, feeMinor: order.feeMinor, feePct: 15, baseCurrency: order.baseCurrency, baseAmountMinor: order.baseAmountMinor, fxRate: order.fxRate });
       await notify(order.userId, "PURCHASE_SUCCESS", "Payment successful", `You bought “${order.book.title}” for ${formatMoney(order.amountMinor, order.currency)}.`, "/orders");
       await notify(order.userId, "BOOK_ADDED", "Book added to your library", `“${order.book.title}” is ready to read and listen to.`, `/read/${order.bookId}`);
     }

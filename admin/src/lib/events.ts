@@ -24,6 +24,19 @@ function map(service: ServiceName, e: Evt): Mapped | null {
   return null;
 }
 
+/** The 15% platform share lands in the admin ledger as soon as the payment is confirmed. */
+async function recordCommission(d: any) {
+  const id = String(d.orderId);
+  if (await db.commission.findUnique({ where: { orderId: id } })) return;
+  await db.commission.create({
+    data: {
+      orderId: id, orderNumber: String(d.number ?? id), book: String(d.book ?? ""), publisher: String(d.publisher ?? ""), currency: d.currency, grossMinor: d.amountMinor,
+      feeMinor: d.feeMinor, baseCurrency: d.baseCurrency ?? null, baseAmountMinor: d.baseAmountMinor ?? null,
+    },
+  });
+  await notifyAdmins("sales", "NEW_COMMISSION", "Commission received", `${formatMoney(d.feeMinor, d.currency)} (15%) from “${d.book}” — ${d.publisher}.`, "/sales");
+}
+
 let last = 0;
 let running: Promise<void> | null = null;
 
@@ -45,6 +58,7 @@ export function pollEvents(force = false): Promise<void> {
         }
         const { events } = await call<{ events: Evt[] }>("GET", "events", { query: { after: cur.lastId } });
         for (const e of events) {
+          if (service === "reader" && e.type === "order.paid" && typeof e.data?.feeMinor === "number") await recordCommission(e.data);
           const m = map(service, e);
           if (m) await notifyAdmins(m.perm, m.type, m.title, m.body, m.link);
         }

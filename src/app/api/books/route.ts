@@ -24,6 +24,6 @@ export const GET = route(async (req) => {
   return {
     currency: v.currency,
     categories: cats.map((c) => c.category),
-    books: books.map((b) => ({ ...serializeBook(b, v.currency), owned: ownedSet.has(b.id) })),
+    books: await Promise.all(books.map(async (b) => ({ ...(await serializeBook(b, v.currency)), owned: ownedSet.has(b.id) }))),
   };
 });

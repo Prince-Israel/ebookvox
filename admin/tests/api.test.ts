@@ -21,9 +21,10 @@ async function until<T>(fn: () => Promise<T | false | null | undefined>, ms = 30
 
 class Client {
   jar = new Map<string, string>();
-  constructor(public base: string) {}
+  constructor(public base: string, public country = "NG") {}
   async req(method: string, path: string, body?: unknown, extra: RequestInit = {}) {
     const headers = new Headers(extra.headers);
+    headers.set("cf-ipcountry", this.country); // visitor location as a CDN reports it; the Reader prices and charges by it
     if (this.jar.size) headers.set("cookie", [...this.jar].map(([k, v]) => `${k}=${v}`).join("; "));
     let payload: BodyInit | undefined;
     if (body instanceof FormData) payload = body; else if (body !== undefined) { headers.set("content-type", "application/json"); payload = JSON.stringify(body); }
@@ -44,7 +45,7 @@ const pw = "Sup3rSecret!";
 const SUPER = { email: "superadmin@ebookvox.app", password: "ChangeMe!2026" };
 
 async function readerUser(tag: string, country: string) {
-  const c = new Client(READER);
+  const c = new Client(READER, country);
   const phone = country === "NG" ? "8012345678" : country === "GB" ? "7700900123" : "2025550123";
   const r = await c.post("/api/auth/signup", { firstName: "Rita", lastName: tag, email: `${tag}.${stamp}@example.com`, password: pw, confirmPassword: pw, country, phoneCountry: country, phone });
   await rdb.user.updateMany({ where: { email: `${tag}.${stamp}@example.com` }, data: { emailVerifiedAt: new Date() } });
@@ -184,7 +185,7 @@ async function main() {
   const live = (await rNG.c.get("/api/books")).data.books.find((b: any) => b.title === "Tower of Tides");
   ok(live && live.author === "Pat Writer" && live.category === "Classic Fiction" && live.price.currency === "NGN" && live.price.amountMinor === 15000000 && !!live.coverUrl, "Reader receives title, author, category, cover and NGN price", live);
   const liveGB = (await rGB.c.get("/api/books")).data.books.find((b: any) => b.title === "Tower of Tides");
-  ok(liveGB?.price.currency === "GBP" && liveGB.price.amountMinor === 8000, "Reader shows the GBP price to a UK reader");
+  ok(liveGB?.price.currency === "GBP" && liveGB.price.amountMinor > 0 && liveGB.price.amountMinor < 100000, "Reader shows a UK reader the NGN list price converted to GBP", liveGB?.price);
   const det = (await rNG.c.get(`/api/books/${live.id}`)).data.book;
   ok(det.publisher === "Aurora House" && det.description.includes("keeper of the light") && det.chapterCount >= 2, "Reader has description, publisher reference and chapters");
   ok((await pubA.c.get(`/api/books/${bookA.id}`)).data.book.status === "PUBLISHED", "publisher sees status Published");
@@ -200,7 +201,7 @@ async function main() {
   ok((await S.get("/api/books?source=PUBLISHER")).data.books.every((b: any) => b.source === "PUBLISHER"), "source filter");
   ok((await S.get("/api/books?q=Tower")).data.books.length === 1, "search filter");
   const hl = all.books.find((b: any) => b.title === "Tower of Tides");
-  const upd = await S.patch(`/api/books/${hl.id}`, { title: "Tower of Tides (Revised)", prices: { NGN: 16000000, USD: 10500, GBP: 8500, EUR: 9900 }, description: "A revised description for the lighthouse story that is long enough." });
+  const upd = await S.patch(`/api/books/${hl.id}`, { title: "Tower of Tides (Revised)", prices: { NGN: 16000000 }, description: "A revised description for the lighthouse story that is long enough." });
   ok(upd.status === 200, "publisher book edited from Admin", upd.data);
   const afterEdit = (await rNG.c.get("/api/books")).data.books.find((b: any) => b.id === hl.id);
   ok(afterEdit.title === "Tower of Tides (Revised)" && afterEdit.price.amountMinor === 16000000, "edit reached the Reader catalogue (with new price)", afterEdit);
@@ -214,6 +215,8 @@ async function main() {
   const bought = await buy(rNG.c, hl.id);
   ok(bought.v?.data.status === "PAID", "reader pays (Paystack verified server-side)");
   ok((await rNG.c.get(`/api/books/${hl.id}/chapters/0`)).status === 200, "purchased book is in the reader's library and readable");
+  const comm = await until(async () => { const c = (await S.get("/api/commissions")).data; return c.recent.length ? c : false; });
+  ok(!!comm && comm.recent[0].feeMinor === Math.floor((comm.recent[0].grossMinor * 15) / 100) && comm.recent[0].currency === "NGN" && comm.totals[0].feeMinor === comm.recent[0].feeMinor, "the 15% commission reaches the Admin ledger as soon as the payment is confirmed", comm);
   const failed = await buy(rGB.c, hl.id, "failed");
   ok(failed.v?.data.status === "FAILED", "a failed payment is recorded");
   ok(!!(await until(async () => (await S.get("/api/sales")).data.sales.length > 0)), "sale reaches the Publisher platform");
@@ -556,6 +559,12 @@ async function main() {
   ok(supDown.unavailable.includes("Publisher") && supDown.tickets.every((t: any) => t.service === "reader") && supDown.tickets.length > 0, "support inbox keeps Reader tickets and reports Publisher unavailable");
   ok((await adb.serviceErrorLog.count({ where: { service: "publisher" } })) > 0, "technical errors are logged");
   ok((await S.get("/api/search?q=Aurora")).data.unavailable.includes("Publisher"), "search reports the unavailable service");
+
+  const an = (await S.get("/api/notifications")).data.notifications.length;
+  ok((await new Client(BASE).req("DELETE", "/api/notifications")).status === 401, "clearing notifications requires an admin session");
+  const ac = await S.req("DELETE", "/api/notifications");
+  const aAfter = (await S.get("/api/notifications")).data;
+  ok(an > 0 && ac.status === 200 && aAfter.notifications.length === 0 && aAfter.unread === 0, "Clear all removes the admin's notifications", { an, aAfter });
 
   console.log(`\n${pass} passed, ${failures.length} failed`);
   if (failures.length) { console.log("FAILED:\n - " + failures.join("\n - ")); process.exitCode = 1; }

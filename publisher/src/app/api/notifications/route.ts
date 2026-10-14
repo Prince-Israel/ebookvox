@@ -10,3 +10,10 @@ export const GET = route(async () => {
   ]);
   return { notifications: items, unread };
 });
+
+/** Clears (deletes) every notification for the signed-in user. */
+export const DELETE = route(async () => {
+  const u = await requireUser();
+  await db.notification.deleteMany({ where: { userId: u.id } });
+  return { unread: 0 };
+});

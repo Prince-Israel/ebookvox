@@ -10,7 +10,7 @@ import { sniffImage } from "./images";
 const MAX_COVER = 8 * 1024 * 1024;
 const PRICE_MAX = 100_000_000;
 
-export const bookInclude = { prices: true, cover: { select: { bookId: true } }, file: { select: { bookId: true } } } as const;
+export const bookInclude = { publisher: { select: { currency: true } }, prices: true, cover: { select: { bookId: true } }, file: { select: { bookId: true } } } as const;
 type BookRow = NonNullable<Awaited<ReturnType<typeof db.book.findFirst<{ include: typeof bookInclude }>>>>;
 
 export function serializeBook(b: BookRow) {
@@ -18,7 +18,9 @@ export function serializeBook(b: BookRow) {
     id: b.id, title: b.title, author: b.author, category: b.category, description: b.description, isFree: b.isFree, status: b.status,
     rejectionReason: b.rejectionReason, fileName: b.fileName, fileKind: b.fileKind, fileSize: b.fileSize, totalChars: b.totalChars,
     hasCover: !!b.cover, coverUrl: b.cover ? `/api/covers/${b.id}?v=${b.coverVersion}` : null, hasFile: !!b.file,
-    prices: Object.fromEntries(b.prices.map((p) => [p.currency, p.amountMinor])) as Record<string, number>,
+    /** The publisher's own currency: the only currency a book is priced in. Readers see it converted automatically. */
+    currency: b.publisher.currency,
+    prices: Object.fromEntries(b.prices.filter((p) => p.currency === b.publisher.currency).map((p) => [p.currency, p.amountMinor])) as Record<string, number>,
     submittedAt: b.submittedAt, approvedAt: b.approvedAt, publishedAt: b.publishedAt, createdAt: b.createdAt, updatedAt: b.updatedAt, syncError: b.syncError,
   };
 }
@@ -108,8 +110,10 @@ export async function applyBook(bookId: string, p: ParsedForm) {
       },
     });
     if (f.prices) {
+      // Publishers price in their own currency only; every other currency is converted at the international rate on the Reader.
+      const owner = await t.book.findUniqueOrThrow({ where: { id: bookId }, select: { publisher: { select: { currency: true } } } });
       await t.bookPrice.deleteMany({ where: { bookId } });
-      const rows = Object.entries(f.prices).filter(([c, v]) => (CURRENCIES as string[]).includes(c) && v > 0).map(([currency, amountMinor]) => ({ bookId, currency, amountMinor }));
+      const rows = Object.entries(f.prices).filter(([c, v]) => c === owner.publisher.currency && (CURRENCIES as string[]).includes(c) && v > 0).map(([currency, amountMinor]) => ({ bookId, currency, amountMinor }));
       if (rows.length) await t.bookPrice.createMany({ data: rows });
     }
     if (p.cover) await t.cover.upsert({ where: { bookId }, create: { bookId, mime: "image/jpeg", data: new Uint8Array(p.cover.data) }, update: { data: new Uint8Array(p.cover.data) } });
@@ -127,6 +131,6 @@ export function submissionProblems(b: ReturnType<typeof serializeBook>) {
   if (!b.hasCover) p.cover = "Upload a book cover.";
   if (!b.hasFile) p.file = "Upload the book file (PDF, DOCX or TXT).";
   else if (b.totalChars < 500) p.file = "The book file contains very little text (under 500 characters).";
-  if (!b.isFree) for (const c of CURRENCIES) if (!(b.prices[c] > 0)) p[`price_${c}`] = `Set a ${c} price.`;
+  if (!b.isFree && !(b.prices[b.currency] > 0)) p[`price_${b.currency}`] = `Set a price in ${b.currency}.`;
   return p;
 }

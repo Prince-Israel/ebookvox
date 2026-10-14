@@ -38,14 +38,15 @@ export function buildChapters(text: string, fallbackTitle: string) {
 export async function publishToReader(bookId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const b = await db.book.findUnique({ where: { id: bookId }, include: { publisher: true, prices: true, cover: { select: { bookId: true } } } });
   if (!b) return { ok: false, error: "Book not found." };
-  const prices = Object.fromEntries(b.prices.map((p) => [p.currency, p.amountMinor]));
+  // One list price, in the publisher's currency; the Reader converts it for each buyer.
+  const prices = Object.fromEntries(b.prices.filter((p) => p.currency === b.publisher.currency).map((p) => [p.currency, p.amountMinor]));
   try {
     const res = await fetch(`${readerUrl()}/api/publisher/books`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-publisher-key": process.env.PUBLISHER_API_KEY ?? "" },
       body: JSON.stringify({
         externalId: b.id, publisherId: b.publisherId, publisherName: b.publisher.publisherName, title: b.title, author: b.author, category: b.category,
-        description: b.description, isFree: b.isFree, prices: b.isFree ? undefined : prices,
+        description: b.description, isFree: b.isFree, baseCurrency: b.isFree ? undefined : b.publisher.currency, prices: b.isFree ? undefined : prices,
         coverUrl: b.cover ? `${appUrl()}/api/covers/${b.id}?v=${b.coverVersion}` : null,
         chapters: buildChapters(b.content, b.title), approved: true,
       }),

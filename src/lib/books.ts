@@ -4,14 +4,30 @@ import { CURRENCIES } from "./countries";
 import { ApiError } from "./api";
 import { notifyAll } from "./notify";
 import { enqueue, flushOutbox } from "./outbox";
+import { convertMinor } from "./fx";
 
 export type BookWithRels = Awaited<ReturnType<typeof loadBook>>;
 
 export const bookInclude = { publisher: true, prices: true } as const;
 export const loadBook = (id: string) => db.book.findUnique({ where: { id }, include: bookInclude });
 
-export function serializeBook(b: NonNullable<BookWithRels>, currency: string) {
-  const price = b.isFree ? null : b.prices.find((p) => p.currency === currency);
+/** The publisher's list price: the one price row (in their currency) that a book is sold from. */
+type Priced = { isFree: boolean; baseCurrency: string | null; prices: Array<{ currency: string; amountMinor: number }> };
+export function basePrice(b: Priced) {
+  if (b.isFree) return null;
+  return b.prices.find((p) => p.currency === b.baseCurrency) ?? b.prices[0] ?? null;
+}
+
+/** Price in the viewer's currency, converted from the publisher's currency at the live international rate. */
+export async function priceIn(b: Priced, currency: string) {
+  const base = basePrice(b);
+  if (!base) return null;
+  const { amountMinor, rate } = await convertMinor(base.amountMinor, base.currency, currency);
+  return { amountMinor, currency, rate, baseCurrency: base.currency, baseAmountMinor: base.amountMinor };
+}
+
+export async function serializeBook(b: NonNullable<BookWithRels>, currency: string) {
+  const price = await priceIn(b, currency);
   return {
     id: b.id,
     title: b.title,
@@ -45,12 +61,16 @@ export const bookInput = z
     language: z.string().trim().max(10).default("en"),
     coverUrl: z.string().url().max(500).optional().nullable(),
     isFree: z.boolean(),
+    baseCurrency: z.enum(CURRENCIES as [string, ...string[]]).optional(),
     prices: priceMap.optional(),
     chapters: z.array(z.object({ title: z.string().trim().min(1).max(200), content: z.string().trim().min(1).max(2_000_000) })).min(1).max(500),
   })
   .superRefine((v, ctx) => {
     if (!v.isFree) {
-      for (const c of CURRENCIES) if (!v.prices?.[c]) ctx.addIssue({ code: "custom", path: ["prices", c], message: `Paid books need a ${c} price (minor units).` });
+      // One list price, in the publisher's currency. Readers see it converted into their own currency.
+      const n = Object.keys(v.prices ?? {}).length;
+      if (n === 0) ctx.addIssue({ code: "custom", path: ["prices"], message: "Paid books need a price in the publisher's currency (minor units)." });
+      if (v.baseCurrency && !v.prices?.[v.baseCurrency]) ctx.addIssue({ code: "custom", path: ["prices", v.baseCurrency], message: `Missing the ${v.baseCurrency} price.` });
     }
   });
 export type BookInput = z.infer<typeof bookInput>;
@@ -70,7 +90,9 @@ export async function upsertBook(input: BookInput, opts: { autoApprove?: boolean
     start += c.content.length;
     return row;
   });
+  const baseCurrency = input.isFree ? null : input.baseCurrency ?? (input.prices?.NGN ? "NGN" : Object.keys(input.prices ?? {})[0]);
   const data = {
+    baseCurrency,
     title: input.title,
     author: input.author,
     category: input.category,
@@ -95,7 +117,7 @@ export async function upsertBook(input: BookInput, opts: { autoApprove?: boolean
       b = await t.book.create({ data: { ...data, externalId: input.externalId, status, approvedAt: opts.autoApprove ? new Date() : null } });
     }
     await t.chapter.createMany({ data: chapters.map((c) => ({ ...c, bookId: b.id })) });
-    if (!input.isFree) await t.bookPrice.createMany({ data: CURRENCIES.map((c) => ({ bookId: b.id, currency: c, amountMinor: input.prices![c]! })) });
+    if (!input.isFree && baseCurrency) await t.bookPrice.create({ data: { bookId: b.id, currency: baseCurrency, amountMinor: input.prices![baseCurrency]! } });
     return b;
   });
   return { book, created: !existing };

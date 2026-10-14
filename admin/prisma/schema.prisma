@@ -83,6 +83,22 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
+// The platform's 15% share, recorded the moment the Reader confirms a payment (idempotent per order).
+model Commission {
+  orderId         String   @id
+  orderNumber     String
+  book            String
+  publisher       String
+  currency        String // what the reader paid in (and what the platform actually received)
+  grossMinor      Int
+  feeMinor        Int // 15% of gross
+  baseCurrency    String? // the publisher's currency
+  baseAmountMinor Int?
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 // Where we are in each service's event feed.
 model ServiceCursor {
   service      String   @id

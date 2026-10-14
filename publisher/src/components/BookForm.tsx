@@ -4,13 +4,12 @@ import { useRouter } from "next/navigation";
 import { FileText, ImagePlus, Save, Send } from "lucide-react";
 import { Banner, Button, Card, Input, Select, Textarea, cx, useToast } from "./ui";
 import { api, ApiFailure, upload } from "@/lib/client";
-import { SUGGEST_PER_USD } from "@/lib/config";
 import { formatMoney } from "@/lib/money";
 import { useUser } from "./UserContext";
 
 export type BookDto = {
   id: string; title: string; author: string; category: string; description: string; isFree: boolean; status: string; rejectionReason: string | null;
-  coverUrl: string | null; hasFile: boolean; fileName: string | null; fileKind: string | null; fileSize: number; prices: Record<string, number>;
+  coverUrl: string | null; hasFile: boolean; fileName: string | null; fileKind: string | null; fileSize: number; currency: string; prices: Record<string, number>;
 };
 const CUR = ["NGN", "USD", "GBP", "EUR"] as const;
 const major = (m?: number) => (m ? String(m / 100) : "");
@@ -41,13 +40,6 @@ export function BookForm({ book }: { book?: BookDto }) {
   const [categories, setCategories] = useState<string[]>(book ? [book.category] : []);
   useEffect(() => { api<{ categories: string[] }>("/api/config").then((c) => setCategories(c.categories)).catch(() => {}); }, []);
   const primary = user.currency;
-  function suggest() {
-    const base = Number(prices[primary]);
-    if (!base) return toast(`Enter the ${primary} price first.`, "error");
-    const usd = base / SUGGEST_PER_USD[primary];
-    setPrices(Object.fromEntries(CUR.map((c) => [c, c === primary ? prices[c] : String(Math.round(usd * SUGGEST_PER_USD[c] * (c === "NGN" ? 1 : 100)) / (c === "NGN" ? 1 : 100))])));
-  }
-
   function pickCover(f?: File) {
     if (!f) return;
     setCover(f);
@@ -66,7 +58,7 @@ export function BookForm({ book }: { book?: BookDto }) {
     fd.append("category", category);
     fd.append("description", description);
     fd.append("isFree", String(isFree));
-    fd.append("prices", JSON.stringify(isFree ? {} : Object.fromEntries(CUR.map((c) => [c, Math.round(Number(prices[c] || 0) * 100)]))));
+    fd.append("prices", JSON.stringify(isFree ? {} : { [primary]: Math.round(Number(prices[primary] || 0) * 100) }));
     if (cover) fd.append("cover", cover);
     if (file) fd.append("file", file);
     try {
@@ -132,12 +124,10 @@ export function BookForm({ book }: { book?: BookDto }) {
         </div>
         {isFree ? <p className="text-sm text-muted">Free books are available to every reader at no cost. They earn no revenue.</p> : (
           <>
-            <p className="text-sm text-muted">Readers pay in their own currency, so set a price for each. Your primary currency is <strong className="text-fg">{primary}</strong>. You earn 85% of every sale.</p>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              {CUR.map((c) => <Input key={c} label={`Price (${c})${c === primary ? " · primary" : ""}`} id={`bk-price-${c}`} type="text" inputMode="decimal" value={prices[c]} onChange={(e) => setPrices({ ...prices, [c]: e.target.value.replace(/[^0-9.]/g, "") })} error={fields[`price_${c}`]} placeholder="0.00" hint={prices[c] ? `You earn ${formatMoney(Math.floor(Number(prices[c]) * 85), c)}` : undefined} />)}
+            <p className="text-sm text-muted">Set your price in <strong className="text-fg">{primary}</strong>, the currency you are paid in. Readers automatically see and pay the equivalent in their own currency, converted at the international exchange rate. The platform keeps 15% of each sale and you receive 85% in {primary}.</p>
+            <div className="max-w-xs">
+              <Input label={`Price (${primary})`} id={`bk-price-${primary}`} type="text" inputMode="decimal" value={prices[primary] ?? ""} onChange={(e) => setPrices({ ...prices, [primary]: e.target.value.replace(/[^0-9.]/g, "") })} error={fields[`price_${primary}`]} placeholder="0.00" hint={prices[primary] ? `You receive ${formatMoney(Math.floor(Number(prices[primary]) * 85), primary)} per sale` : undefined} />
             </div>
-            <Button type="button" size="sm" variant="secondary" onClick={suggest}>Suggest other currencies from {primary} price</Button>
-            <p className="text-xs text-muted">Suggestions use indicative exchange rates — review and edit every price before submitting.</p>
           </>
         )}
       </Card>

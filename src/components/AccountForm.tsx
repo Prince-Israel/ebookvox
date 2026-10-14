@@ -68,7 +68,7 @@ export function AccountForm() {
       <Select label="Country" id="acc-country" value={country} onChange={(e) => setCountry(e.target.value)} error={fields.country}>
         {countries.map((c) => <option key={c.code} value={c.code} suppressHydrationWarning>{c.name}</option>)}
       </Select>
-      <p className="text-sm text-muted">Currency: <strong className="text-fg">{currencyForCountry(country)}</strong> <span>(set by your country — used for all prices and orders)</span></p>
+      <p className="text-sm text-muted">Currency: <strong className="text-fg">{currencyForCountry(country)}</strong> <span>(your account's home currency. Book prices and payments always use the currency of where you are right now.)</span></p>
       <Button type="submit" loading={busy}>Save changes</Button>
     </form>
   );

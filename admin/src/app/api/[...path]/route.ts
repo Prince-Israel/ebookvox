@@ -270,6 +270,17 @@ on("GET", "lookup/publishers", ["transactions", "sales", "payouts", "publishers"
 // ------------------------------------------------------------------ sales, payouts, transactions
 on("GET", "sales", "sales", async ({ q }) => publisher("GET", "sales", { query: qp(q, "q", "publisherId", "currency", "status", "from", "to", "page", "pageSize") }));
 
+on("GET", "commissions", "sales", async () => {
+  const [totals, recent] = await Promise.all([
+    db.commission.groupBy({ by: ["currency"], _sum: { feeMinor: true, grossMinor: true }, _count: true }),
+    db.commission.findMany({ orderBy: { createdAt: "desc" }, take: 25 }),
+  ]);
+  return {
+    totals: totals.map((t) => ({ currency: t.currency, count: t._count, feeMinor: t._sum.feeMinor ?? 0, grossMinor: t._sum.grossMinor ?? 0 })),
+    recent: recent.map((c) => ({ orderId: c.orderId, number: c.orderNumber, book: c.book, publisher: c.publisher, currency: c.currency, grossMinor: c.grossMinor, feeMinor: c.feeMinor, createdAt: c.createdAt })),
+  };
+});
+
 on("GET", "payouts", "payouts", async ({ q }) => {
   const status = q.get("status");
   if (status === "PENDING") return { total: 0, withdrawals: [] }; // requests move straight to Processing; nothing sits in "Pending"
@@ -431,6 +442,10 @@ on("POST", "notifications/read", "auth", async ({ admin, body }) => {
   const d = z.object({ ids: z.array(z.string()).max(200).optional(), all: z.boolean().optional() }).parse(body);
   await db.adminNotification.updateMany({ where: { adminId: admin.id, readAt: null, ...(d.all ? {} : { id: { in: d.ids ?? [] } }) }, data: { readAt: new Date() } });
   return { unread: await db.adminNotification.count({ where: { adminId: admin.id, readAt: null } }) };
+});
+on("DELETE", "notifications", "auth", async ({ admin }) => {
+  await db.adminNotification.deleteMany({ where: { adminId: admin.id } });
+  return { unread: 0 };
 });
 on("GET", "activity", "activity_logs", async ({ q }) => {
   const page = Math.max(1, Number(q.get("page") ?? 1)), size = 30, s = q.get("q")?.trim();

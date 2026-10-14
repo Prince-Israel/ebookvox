@@ -166,12 +166,13 @@ on("POST", "books/:id/review", async ({ p, body }) => {
 });
 on("PATCH", "books/:id", async ({ p, body }) => {
   const d = z.object({ title: z.string().trim().min(1).max(200), author: z.string().trim().min(1).max(150), category: z.string().trim().min(1).max(60), description: z.string().trim().min(10).max(5000), prices: z.record(z.string(), z.number().int().positive().max(100_000_000)) }).partial().parse(body);
-  const b = await db.book.findUnique({ where: { id: p[0] }, include: { prices: true } });
+  const b = await db.book.findUnique({ where: { id: p[0] }, include: { prices: true, publisher: { select: { currency: true } } } });
   if (!b || b.status === "DRAFT") throw new ApiError(404, "Book not found.");
   const { prices, ...rest } = d;
+  if (prices && !b.isFree && !(prices[b.publisher.currency] > 0)) throw new ApiError(400, `Prices are set in the publisher's currency (${b.publisher.currency}); other currencies are converted automatically.`);
   await db.$transaction(async (t) => {
     await t.book.update({ where: { id: b.id }, data: rest });
-    if (prices && !b.isFree) for (const [currency, amountMinor] of Object.entries(prices)) if ((CURRENCIES as string[]).includes(currency)) await t.bookPrice.upsert({ where: { bookId_currency: { bookId: b.id, currency } }, create: { bookId: b.id, currency, amountMinor }, update: { amountMinor } });
+    if (prices && !b.isFree) for (const [currency, amountMinor] of Object.entries(prices)) if (currency === b.publisher.currency) await t.bookPrice.upsert({ where: { bookId_currency: { bookId: b.id, currency } }, create: { bookId: b.id, currency, amountMinor }, update: { amountMinor } });
   });
   let warning: string | undefined;
   if (b.status === "PUBLISHED") { const r = await publishToReader(b.id); if (!r.ok) warning = r.error; }

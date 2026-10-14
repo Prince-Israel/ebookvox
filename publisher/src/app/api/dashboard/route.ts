@@ -17,7 +17,7 @@ export const GET = route(async (req) => {
     db.sale.groupBy({ by: ["bookId"], where: { publisherId: u.id, status: "PAID", currency, paidAt: { gte: since } }, _count: true, _sum: { publisherMinor: true }, orderBy: { _sum: { publisherMinor: "desc" } }, take: 5 }),
   ]);
   const n = (s: string[]) => counts.filter((c) => s.includes(c.status)).reduce((a, c) => a + c._count, 0);
-  const lifetime = await db.sale.groupBy({ by: ["currency"], where: { publisherId: u.id, status: "PAID" }, _count: true, _sum: { publisherMinor: true, grossMinor: true } });
+  const lifetime = await db.sale.groupBy({ by: ["currency"], where: { publisherId: u.id, status: "PAID" }, _count: true, _sum: { publisherMinor: true } });
 
   // Bucket by day (≤ 90 days) or by week (longer) so the series stays readable.
   const days = RANGES[rk];
@@ -41,7 +41,7 @@ export const GET = route(async (req) => {
   return {
     range: rk, currency, primaryCurrency: u.currency,
     books: { total: counts.reduce((a, c) => a + c._count, 0), approved: n(["APPROVED", "PUBLISHED"]), reviewing: n(["REVIEWING"]), rejected: n(["REJECTED"]), drafts: n(["DRAFT"]) },
-    lifetime: lifetime.map((l) => ({ currency: l.currency, sales: l._count, grossMinor: l._sum.grossMinor ?? 0, earningsMinor: l._sum.publisherMinor ?? 0 })),
+    lifetime: lifetime.map((l) => ({ currency: l.currency, sales: l._count, earningsMinor: l._sum.publisherMinor ?? 0 })),
     wallets,
     series: [...buckets.values()],
     top: topRaw.map((t) => ({ bookId: t.bookId, title: titles.find((x) => x.id === t.bookId)?.title ?? "Deleted book", sales: t._count, earningsMinor: t._sum.publisherMinor ?? 0 })),

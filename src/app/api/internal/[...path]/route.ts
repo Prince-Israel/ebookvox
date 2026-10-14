@@ -161,11 +161,12 @@ on("PATCH", "books/:id", async ({ p, body }) => {
   }).partial().parse(body);
   const b = await db.book.findFirst({ where: { OR: [{ id: p[0] }, { externalId: p[0] }] }, include: { prices: true } });
   if (!b) throw new ApiError(404, "Book not found.");
-  if (d.prices && !b.isFree) for (const c of CURRENCIES) if (!(d.prices[c] > 0) && !b.prices.find((x) => x.currency === c)) throw new ApiError(400, `A ${c} price is required.`);
+  const baseCur = b.baseCurrency ?? b.prices[0]?.currency;
+  if (d.prices && !b.isFree && baseCur && !(d.prices[baseCur] > 0)) throw new ApiError(400, `The price is set in ${baseCur} (the publisher's currency); other currencies are converted automatically.`);
   await db.$transaction(async (t) => {
     const { prices, ...rest } = d;
     await t.book.update({ where: { id: b.id }, data: { ...rest, ...(d.status === "APPROVED" && !b.approvedAt ? { approvedAt: new Date() } : {}) } });
-    if (prices && !b.isFree) for (const [currency, amountMinor] of Object.entries(prices)) if ((CURRENCIES as string[]).includes(currency)) await t.bookPrice.upsert({ where: { bookId_currency: { bookId: b.id, currency } }, create: { bookId: b.id, currency, amountMinor }, update: { amountMinor } });
+    if (prices && !b.isFree && baseCur) for (const [currency, amountMinor] of Object.entries(prices)) if (currency === baseCur) await t.bookPrice.upsert({ where: { bookId_currency: { bookId: b.id, currency } }, create: { bookId: b.id, currency, amountMinor }, update: { amountMinor } });
   });
   return { id: b.id };
 });

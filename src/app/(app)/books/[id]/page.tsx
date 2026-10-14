@@ -61,7 +61,8 @@ export default function BookDetails({ params }: { params: Promise<{ id: string }
                 <Card className="mt-6 flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <p className="text-sm text-muted">{b.isFree ? "Price" : `Price (${b.price?.currency ?? ""})`}</p>
-                    <p className="font-serif text-3xl font-semibold">{b.isFree ? "FREE" : b.price ? formatMoney(b.price.amountMinor, b.price.currency) : "Not available in your currency"}</p>
+                    <p className="font-serif text-3xl font-semibold">{b.isFree ? "FREE" : b.price ? formatMoney(b.price.amountMinor, b.price.currency) : "Not available"}</p>
+                    {!b.isFree && b.price && <p className="mt-0.5 text-xs text-muted">Shown in your local currency at today's international exchange rate.</p>}
                   </div>
                   {owned ? (
                     <Button size="lg" onClick={() => router.push(`/read/${id}`)}>{progress && progress.percent > 0 ? `Continue Reading · ${Math.round(progress.percent)}%` : "Read Now"}</Button>

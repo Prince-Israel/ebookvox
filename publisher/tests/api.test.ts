@@ -19,9 +19,10 @@ async function until<T>(fn: () => Promise<T | false | null | undefined>, ms = 40
 
 class Client {
   jar = new Map<string, string>();
-  constructor(public base = BASE) {}
+  constructor(public base = BASE, public country = "NG") {}
   async req(method: string, path: string, body?: unknown, extra: RequestInit = {}) {
     const headers = new Headers(extra.headers);
+    headers.set("cf-ipcountry", this.country); // the visitor's location as a CDN reports it (the Reader prices by it)
     if (this.jar.size) headers.set("cookie", [...this.jar].map(([k, v]) => `${k}=${v}`).join("; "));
     let payload: BodyInit | undefined;
     if (body instanceof FormData) payload = body; else if (body !== undefined) { headers.set("content-type", "application/json"); payload = JSON.stringify(body); }
@@ -52,7 +53,7 @@ const BOOK_TEXT = "# Chapter One\n\n" + Array.from({ length: 12 }, (_, i) => `Th
 async function cover(w = 600, h = 900) { return sharp({ create: { width: w, height: h, channels: 3, background: "#b5703f" } }).jpeg().toBuffer(); }
 async function bookForm(over: Record<string, any> = {}, opts: { cover?: boolean | Buffer; file?: "txt" | "docx" | "pdf" | false | { name: string; data: Buffer | string; type?: string } } = {}) {
   const fd = new FormData();
-  const f = { title: "The Lighthouse Keeper", author: "Ada Okafor", category: "Classic Fiction", description: "A calm and moving story about a keeper of the light and the town that depends on him.", isFree: false, prices: { NGN: 15000000, USD: 10000, GBP: 8000, EUR: 9500 }, ...over };
+  const f = { title: "The Lighthouse Keeper", author: "Ada Okafor", category: "Classic Fiction", description: "A calm and moving story about a keeper of the light and the town that depends on him.", isFree: false, prices: { NGN: 15000000 }, ...over };
   for (const [k, v] of Object.entries(f)) fd.append(k, typeof v === "object" ? JSON.stringify(v) : String(v));
   if (opts.cover !== false) fd.append("cover", new Blob([new Uint8Array(Buffer.isBuffer(opts.cover) ? opts.cover : await cover())], { type: "image/jpeg" }), "cover.jpg");
   const kind = opts.file ?? "txt";
@@ -69,7 +70,7 @@ async function bookForm(over: Record<string, any> = {}, opts: { cover?: boolean 
 }
 
 async function readerSignup(tag: string, country: string) {
-  const c = new Client(READER);
+  const c = new Client(READER, country);
   const r = await c.post("/api/auth/signup", { firstName: "Buyer", lastName: tag, email: `${tag}.${stamp}@example.com`, password: pw, confirmPassword: pw, country, phoneCountry: country, phone: country === "NG" ? "8012345678" : country === "GB" ? "7700900123" : "2025550123" });
   await rdb.user.updateMany({ where: { email: `${tag}.${stamp}@example.com` }, data: { emailVerifiedAt: new Date() } });
   return { c, r };
@@ -159,8 +160,8 @@ async function main() {
   const up = await A.req("PATCH", `/api/books/${inc.data.id}`, await bookForm({ title: "Incomplete (fixed)" }));
   ok(up.status === 200 && (await A.get(`/api/books/${inc.data.id}`)).data.book.hasCover, "draft edit adds cover + file");
   ok((await A.del(`/api/books/${inc.data.id}`)).status === 200, "draft can be deleted");
-  const unpriced = await A.req("POST", "/api/books", await bookForm({ title: "No price", prices: { NGN: 100 } }));
-  ok((await A.post(`/api/books/${unpriced.data.id}/submit`)).status === 422, "paid book needs all four currency prices to submit");
+  const unpriced = await A.req("POST", "/api/books", await bookForm({ title: "No price", prices: { USD: 100 } }));
+  ok((await A.post(`/api/books/${unpriced.data.id}/submit`)).status === 422, "paid book needs a price in the publisher's own currency to submit (a USD price from an NGN publisher is ignored)");
 
   ok((await A.post(`/api/books/${bookId}/submit`)).status === 200, "Submit for Review");
   ok((await A.get(`/api/books/${bookId}`)).data.book.status === "REVIEWING", "status → Reviewing");
@@ -204,7 +205,10 @@ async function main() {
   const sales = await until(async () => { const s = (await A.get("/api/sales")).data; return s.sales.length ? s : false; });
   ok(sales && sales.sales.length === 1, "sale arrives at Publisher via signed webhook");
   const s = sales!.sales[0];
-  ok(s.grossMinor === 15000000 && s.publisherMinor === 12750000 && s.platformMinor === 2250000 && s.currency === "NGN" && s.status === "PAID" && /Buyer/.test(s.buyer), "gross ₦150,000 → publisher ₦127,500 (85%) / platform ₦22,500 (15%)", s);
+  ok(s.earnedMinor === 12750000 && s.currency === "NGN" && s.status === "PAID" && /Buyer/.test(s.buyer), "₦150,000 sale → publisher sees ₦127,500 (85%)", s);
+  ok(!("grossMinor" in s) && !("platformMinor" in s) && !("grossMinor" in sales!.totals[0]) && !("platformMinor" in sales!.totals[0]), "publisher is never shown the gross price or the platform's 15%");
+  const dbSale = (await db.sale.findMany({ where: { number: s.number } }))[0];
+  ok(dbSale.grossMinor === 15000000 && dbSale.publisherMinor === 12750000 && dbSale.platformMinor === 2250000 && dbSale.publisherMinor + dbSale.platformMinor === dbSale.grossMinor, "stored split is exactly 85/15 and adds back to the gross", dbSale);
   const w1 = (await A.get("/api/wallet")).data;
   const ngn = w1.wallets.find((w: any) => w.currency === "NGN");
   ok(ngn.available === 12750000 && ngn.earned === 12750000 && ngn.withdrawn === 0 && ngn.pending === 0, "wallet credited with the 85% share", ngn);
@@ -225,11 +229,13 @@ async function main() {
   const { c: rGB } = await readerSignup("reader-gb", "GB");
   const sale2 = await readerBuy(rGB, live.id);
   ok(sale2.v?.data.status === "PAID", "UK buyer pays in GBP");
-  const w2 = await until(async () => { const w = (await A.get("/api/wallet")).data; return w.wallets.find((x: any) => x.currency === "GBP")?.available ? w : false; });
-  const gbp = w2?.wallets.find((x: any) => x.currency === "GBP");
-  ok(gbp?.available === 6800 && w2.wallets.find((x: any) => x.currency === "NGN").available === 12750000, "GBP sale credits the GBP wallet (£80 → £68); NGN untouched — currencies never mixed", gbp);
+  const w2 = await until(async () => { const w = (await A.get("/api/wallet")).data; return w.wallets.find((x: any) => x.currency === "NGN")?.available >= 25500000 ? w : false; });
+  const ngn2 = w2?.wallets.find((x: any) => x.currency === "NGN");
+  ok(ngn2?.available === 25500000 && !w2.wallets.some((x: any) => x.currency === "GBP" && x.earned > 0), "a GBP purchase still credits the publisher in NGN (their own currency) — never in the buyer's currency", ngn2);
+  const gbSale = (await db.sale.findMany({ where: { paidCurrency: "GBP" } }))[0];
+  ok(gbSale?.currency === "NGN" && gbSale.grossMinor === 15000000 && gbSale.publisherMinor === 12750000 && gbSale.paidMinor! > 0 && gbSale.paidMinor! < 15000000, "sale keeps the buyer's GBP payment on record but the split is on the NGN list price", gbSale);
   const dash = (await A.get("/api/dashboard?range=30d")).data;
-  ok(dash.books.total === 4 && dash.books.approved === 1 && dash.books.drafts === 3 && dash.lifetime.length === 2 && dash.top[0]?.title === "The Lighthouse Keeper" && dash.series.length >= 30, "dashboard aggregates come from the database", { books: dash.books, top: dash.top });
+  ok(dash.books.total === 4 && dash.books.approved === 1 && dash.books.drafts === 3 && dash.lifetime.length === 1 && dash.top[0]?.title === "The Lighthouse Keeper" && dash.series.length >= 30, "dashboard aggregates come from the database", { books: dash.books, top: dash.top });
   for (const r of ["7d", "30d", "3m", "6m", "1y"]) if ((await A.get(`/api/dashboard?range=${r}`)).status !== 200) ok(false, `range ${r}`);
   ok(true, "all dashboard ranges respond");
 
@@ -247,7 +253,7 @@ async function main() {
   ok(pm.bankName === "Guaranty Trust Bank (GTBank)" && pm.accountNumberMasked.endsWith("6789"), "bank details stored", pm);
   const below = await wdBad(99999);
   ok(below.status === 422 && /minimum/i.test(below.data.error) && /100,000/.test(below.data.error), "below ₦100,000 minimum rejected", below.data);
-  const over = await wdBad(200000);
+  const over = await wdBad(300000);
   ok(over.status === 422 && /available balance is insufficient/.test(over.data.error), "above available balance rejected with a clear message", over.data);
   ok((await wdBad(100000, "GBP")).status === 422, "GBP minimum enforced separately");
   const [r1, r2] = await Promise.all([A.post("/api/withdrawals", { currency: "NGN", amount: 100000 }), A.post("/api/withdrawals", { currency: "NGN", amount: 100000 })]);
@@ -255,7 +261,7 @@ async function main() {
   const wd = (await A.get("/api/withdrawals")).data.withdrawals;
   ok(wd.length === 1 && wd[0].status === "PROCESSING" && wd[0].amountMinor === 10000000 && wd[0].method === "BANK", "withdrawal Processing", wd);
   const w3 = (await A.get("/api/wallet")).data.wallets.find((w: any) => w.currency === "NGN");
-  ok(w3.available === 2750000 && w3.pending === 10000000 && w3.withdrawn === 0, "balance held: available ₦27,500, pending ₦100,000", w3);
+  ok(w3.available === 15500000 && w3.pending === 10000000 && w3.withdrawn === 0, "balance held: available ₦155,000, pending ₦100,000", w3);
   const dup = await wdBad(100000);
   ok(dup.status === 409 || dup.status === 422, "another request while processing is blocked", dup.data);
   ok((await A.get("/api/notifications")).data.notifications.filter((n: any) => /WITHDRAWAL_(REQUESTED|PROCESSING)/.test(n.type)).length === 2, "withdrawal requested + processing notifications");
@@ -266,13 +272,13 @@ async function main() {
   ok((await ADM.post(`/api/admin/withdrawals/${wid}`, { action: "reject", reason: "Account name doesn't match your profile." })).status === 200, "admin rejects withdrawal");
   const wRej = (await A.get("/api/withdrawals")).data.withdrawals[0];
   const w4 = (await A.get("/api/wallet")).data.wallets.find((w: any) => w.currency === "NGN");
-  ok(wRej.status === "REJECTED" && wRej.reason && w4.available === 12750000 && w4.pending === 0, "rejected → funds returned to wallet", { wRej, w4 });
+  ok(wRej.status === "REJECTED" && wRej.reason && w4.available === 25500000 && w4.pending === 0, "rejected → funds returned to wallet", { wRej, w4 });
   ok((await ADM.post(`/api/admin/withdrawals/${wid}`, { action: "paid", reference: "TRX-0001-OK" })).status === 409, "processed withdrawal can't be processed twice");
   const again = await A.post("/api/withdrawals", { currency: "NGN", amount: 100000 });
   ok(again.status === 200, "can request again after rejection");
   ok((await ADM.post(`/api/admin/withdrawals/${again.data.withdrawal.id}`, { action: "paid", reference: "TRX-0001-OK" })).status === 200, "admin marks paid");
   const w5 = (await A.get("/api/wallet")).data.wallets.find((w: any) => w.currency === "NGN");
-  ok(w5.withdrawn === 10000000 && w5.available === 2750000 && w5.pending === 0 && w5.earned === 12750000, "wallet: withdrawn ₦100,000, available ₦27,500", w5);
+  ok(w5.withdrawn === 10000000 && w5.available === 15500000 && w5.pending === 0 && w5.earned === 25500000, "wallet: withdrawn ₦100,000, available ₦155,000", w5);
   const hist = (await A.get("/api/withdrawals")).data.withdrawals;
   ok(hist.map((h: any) => h.status).sort().join() === "PAID,REJECTED" && hist.every((h: any) => h.number && h.method && h.requestedAt), "payout history shows ID, method, dates, status");
   ok((await A.get("/api/wallet")).data.transactions.some((t: any) => t.type === "WITHDRAWAL_REFUND") && (await A.get("/api/notifications")).data.notifications.some((n: any) => n.type === "WITHDRAWAL_PAID") && (await A.get("/api/notifications")).data.notifications.some((n: any) => n.type === "WITHDRAWAL_REJECTED"), "ledger + paid/rejected notifications");
@@ -285,11 +291,13 @@ async function main() {
   ok((await I.put("/api/payment-method", { paypalEmail: "not-an-email" })).status === 400, "PayPal email validated");
   ok((await I.put("/api/payment-method", { bankCode: "058", accountName: "A B", accountNumber: "0123456789" })).status === 400, "bank not accepted for international publisher");
   ok((await I.put("/api/payment-method", { paypalEmail: "payments@example.com" })).status === 200, "PayPal saved");
-  const ib = await I.req("POST", "/api/books", await bookForm({ title: "Ocean Notes", prices: { NGN: 30000000, USD: 20000, GBP: 16000, EUR: 19000 } }, { file: "docx" }));
+  const ib = await I.req("POST", "/api/books", await bookForm({ title: "Ocean Notes", prices: { USD: 20000 } }, { file: "docx" }));
   ok((await I.post(`/api/books/${ib.data.id}/submit`)).status === 200 && (await ADM.post(`/api/admin/review/${ib.data.id}`, { action: "approve" })).data.status === "PUBLISHED", "international book submitted and published");
   const { c: rUS } = await readerSignup("reader-us", "US");
   const liveUS = (await rUS.get("/api/books")).data.books.find((b: any) => b.title === "Ocean Notes");
   ok(liveUS?.price.currency === "USD" && liveUS.price.amountMinor === 20000, "US reader sees $200");
+  const ngView = (await rNG.get("/api/books")).data.books.find((b: any) => b.title === "Ocean Notes");
+  ok(ngView?.price.currency === "NGN" && ngView.price.amountMinor > 20000 * 500, "a Nigerian reader sees the same $200 book converted to naira at the international rate", ngView?.price);
   ok((await readerBuy(rUS, liveUS.id)).v?.data.status === "PAID", "US reader pays");
   const iw = await until(async () => { const w = (await I.get("/api/wallet")).data; return w.wallets.find((x: any) => x.currency === "USD")?.available ? w : false; });
   ok(iw?.wallets.find((x: any) => x.currency === "USD").available === 17000, "USD wallet credited $170 (85% of $200)");
@@ -350,6 +358,14 @@ async function main() {
   ok((await A.del(`/api/books/${draftA}`)).status === 200 && (await A.get(`/api/books/${draftA}`)).status === 404, "draft deleted");
   ok((await A.del(`/api/books/${bookId}`)).status === 409, "published book can't be deleted");
   ok(((await A.get("/api/books")).data.books as any[]).every((b) => b.coverUrl === null || b.coverUrl.startsWith("/api/covers/")), "list payload sane");
+
+  const pn = (await A.get("/api/notifications")).data.notifications.length;
+  const pi = (await I.get("/api/notifications")).data.notifications.length;
+  ok((await new Client().req("DELETE", "/api/notifications")).status === 401, "clearing notifications requires login");
+  const pc = await A.req("DELETE", "/api/notifications");
+  const pAfter = (await A.get("/api/notifications")).data;
+  ok(pn > 0 && pc.status === 200 && pAfter.notifications.length === 0 && pAfter.unread === 0, "Clear all removes every notification for the publisher", { pn, pAfter });
+  ok((await I.get("/api/notifications")).data.notifications.length === pi, "other publishers' notifications untouched");
 
   console.log(`\n${pass} passed, ${failures.length} failed`);
   if (failures.length) { console.log("FAILED:\n - " + failures.join("\n - ")); process.exitCode = 1; }

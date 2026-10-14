@@ -21,13 +21,15 @@ export function BookEditSheet({ book, onClose, onSaved }: { book: BookRow | null
     setPrices(Object.fromEntries(CUR.map((c) => [c, src.prices[c] ? String(src.prices[c] / 100) : ""])));
     setErr(null);
   }, [src?.id, src?.title]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A book has one list price, in the publisher's currency; every reader sees it converted automatically.
+  const curs = src ? CUR.filter((c) => src.prices[c] !== undefined) : [];
   const cats = Array.from(new Set([...(settings.data?.settings.categories ?? []), f.category].filter(Boolean)));
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setErr(null);
     try {
       const body: any = { title: f.title, author: f.author, category: f.category, description: f.description };
-      if (src && !src.isFree) body.prices = Object.fromEntries(CUR.filter((c) => Number(prices[c]) > 0).map((c) => [c, Math.round(Number(prices[c]) * 100)]));
+      if (src && !src.isFree) body.prices = Object.fromEntries(curs.filter((c) => Number(prices[c]) > 0).map((c) => [c, Math.round(Number(prices[c]) * 100)]));
       if (src && ["APPROVED", "ARCHIVED"].includes(src.status)) body.status = f.status;
       const r = await api<{ warning?: string }>(`/api/books/${book!.id}`, { method: "PATCH", json: body });
       toast(r.warning ? `Saved, but: ${r.warning}` : "Book saved.", r.warning ? "error" : "success");
@@ -45,7 +47,7 @@ export function BookEditSheet({ book, onClose, onSaved }: { book: BookRow | null
           <Input label="Author" id="b-author" value={f.author} onChange={(e) => setF({ ...f, author: e.target.value })} />
           <Select label="Category" id="b-cat" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>{cats.map((c) => <option key={c}>{c}</option>)}</Select>
           <Textarea label="Description" id="b-desc" rows={5} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
-          {!src.isFree && <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{CUR.map((c) => <Input key={c} label={`Price ${c}`} id={`b-p-${c}`} inputMode="decimal" value={prices[c] ?? ""} onChange={(e) => setPrices({ ...prices, [c]: e.target.value.replace(/[^0-9.]/g, "") })} />)}</div>}
+          {!src.isFree && <div className="grid gap-3 sm:max-w-xs">{curs.map((c) => <Input key={c} label={`Price (${c}) · converted for readers automatically`} id={`b-p-${c}`} inputMode="decimal" value={prices[c] ?? ""} onChange={(e) => setPrices({ ...prices, [c]: e.target.value.replace(/[^0-9.]/g, "") })} />)}</div>}
           {["APPROVED", "ARCHIVED"].includes(src.status) && <Select label="Catalogue visibility" id="b-status" value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}><option value="APPROVED">Visible in the Reader catalogue</option><option value="ARCHIVED">Archived (hidden; owners keep access)</option></Select>}
           <Button type="submit" size="lg" className="w-full" loading={busy}>Save changes</Button>
         </form>

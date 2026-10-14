@@ -95,8 +95,8 @@ async function main() {
   await p.locator("#bk-cover").setInputFiles(fx("cover.jpg"));
   await p.locator("#bk-file").setInputFiles(fx("bad.exe"));
   await p.locator("#bk-price-NGN").fill("2500");
-  await p.getByRole("button", { name: /Suggest other currencies/ }).click();
-  ok((await p.locator("#bk-price-USD").inputValue()) !== "" && (await p.locator("#bk-price-GBP").inputValue()) !== "", "other currency prices suggested (editable)");
+  ok((await p.locator("#bk-price-USD").count()) === 0 && (await p.locator("#bk-price-GBP").count()) === 0 && await p.getByText(/converted at the international exchange rate/i).first().isVisible(), "publisher sets one price in their own currency; others are converted automatically");
+  ok(await p.getByText("You receive ₦2,125", { exact: false }).first().isVisible(), "form shows the publisher's 85% take-home");
   await p.getByRole("button", { name: /Save Draft/ }).click();
   await p.getByText(/must be a PDF, DOCX or TXT/).first().waitFor();
   ok(true, "invalid book file type rejected with a clear message");

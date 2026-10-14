@@ -12,7 +12,7 @@ import { formatMoney } from "@/lib/money";
 type Data = {
   range: string; currency: string; primaryCurrency: string;
   books: { total: number; approved: number; reviewing: number; rejected: number; drafts: number };
-  lifetime: Array<{ currency: string; sales: number; grossMinor: number; earningsMinor: number }>;
+  lifetime: Array<{ currency: string; sales: number; earningsMinor: number }>;
   wallets: Array<{ currency: string; available: number; earned: number; withdrawn: number; pending: number }>;
   series: Array<{ date: string; sales: number; earnings: number }>;
   top: Array<{ bookId: string; title: string; sales: number; earningsMinor: number }>;

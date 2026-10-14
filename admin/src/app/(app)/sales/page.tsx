@@ -11,10 +11,17 @@ export default function SalesPage() {
   const [q, setQ] = useState(""); const [dq, setDq] = useState(""); const [currency, setCurrency] = useState(""); const [pub, setPub] = useState(""); const [page, setPage] = useState(1);
   useEffect(() => { const t = setTimeout(() => { setDq(q.trim()); setPage(1); }, 300); return () => clearTimeout(t); }, [q]);
   const pubs = useApi<{ publishers: Array<{ id: string; name: string }> }>("/api/lookup/publishers");
+  const com = useApi<{ totals: Array<{ currency: string; count: number; feeMinor: number; grossMinor: number }>; recent: any[] }>("/api/commissions");
   const s = useApi<{ total: number; sales: any[]; totals: any[] }>(`/api/sales?${new URLSearchParams({ ...(dq && { q: dq }), ...(currency && { currency }), ...(pub && { publisherId: pub }), page: String(page) })}`, "We couldn't load Publisher sales.");
   return (
     <div>
       <PageTitle title="Publisher sales" sub="Every sale comes from a verified payment. Publisher share 85% · Platform share 15%." />
+      {com.data && com.data.totals.length > 0 && (
+        <section aria-label="Platform commission" className="mb-6">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">Platform commission received (15%)</h2>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{com.data.totals.map((t) => <Card key={t.currency} className="p-4"><p className="text-sm text-muted">{t.currency} · {t.count} {t.count === 1 ? "purchase" : "purchases"}</p><p className="font-serif text-2xl font-semibold tabular-nums">{formatMoney(t.feeMinor, t.currency)}</p><p className="text-xs text-muted">of {formatMoney(t.grossMinor, t.currency)} paid by readers</p></Card>)}</div>
+        </section>
+      )}
       <FilterBar>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search sale, book, publisher" aria-label="Search sales" className={`${filterInput} w-full sm:w-72`} />
         <select value={currency} onChange={(e) => { setCurrency(e.target.value); setPage(1); }} aria-label="Currency" className={filterInput}><option value="">All currencies</option>{["NGN", "USD", "GBP", "EUR"].map((c) => <option key={c}>{c}</option>)}</select>

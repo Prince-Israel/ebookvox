@@ -141,7 +141,9 @@ model Sale {
   readerOrderId    String   @unique
   buyerLabel       String
   currency         String
-  grossMinor       Int
+  grossMinor       Int // list price in the publisher's currency (`currency`)
+  paidCurrency     String? // what the reader actually paid, in their own currency
+  paidMinor        Int?
   publisherMinor   Int // 85%
   platformMinor    Int // 15%
   status           String   @default("PAID")

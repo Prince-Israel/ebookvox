@@ -53,7 +53,7 @@ export default function BookPage({ params }: { params: Promise<{ id: string }> }
                 <Card>
                   <h2 className="mb-3 text-xl font-semibold">Pricing</h2>
                   {b.isFree ? <p className="font-serif text-2xl font-semibold">FREE</p> : (
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">{["NGN", "USD", "GBP", "EUR"].map((c) => <div key={c}><p className="text-sm text-muted">{c}</p><p className="font-serif text-xl font-semibold">{b.prices[c] ? formatMoney(b.prices[c], c) : "—"}</p></div>)}</div>
+                    <div><p className="font-serif text-2xl font-semibold">{b.prices[b.currency] ? formatMoney(b.prices[b.currency], b.currency) : "Not set"}</p><p className="mt-1 text-sm text-muted">Your price in {b.currency}. Readers see it converted to their own currency automatically.</p></div>
                   )}
                 </Card>
                 <Card>

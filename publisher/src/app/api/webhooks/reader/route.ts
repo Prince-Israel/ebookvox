@@ -18,24 +18,27 @@ export async function POST(req: NextRequest) {
   try {
     if (evt.type === "sale.completed") {
       const d = evt.data;
-      if (!d?.orderId || !Number.isInteger(d.amountMinor) || d.amountMinor <= 0 || !["NGN", "USD", "GBP", "EUR"].includes(d.currency)) return new NextResponse("bad sale", { status: 400 });
+      // The publisher is always paid in their own currency: the list price they set, which the Reader converted for the buyer.
+      const cur: string = d?.baseCurrency ?? d?.currency;
+      const gross: number = d?.baseAmountMinor ?? d?.amountMinor;
+      if (!d?.orderId || !Number.isInteger(gross) || gross <= 0 || !["NGN", "USD", "GBP", "EUR"].includes(cur)) return new NextResponse("bad sale", { status: 400 });
       const book = await db.book.findUnique({ where: { id: String(d.bookExternalId) }, include: { publisher: true } });
       if (!book) return new NextResponse("unknown book", { status: 202 }); // not ours; acknowledge so it isn't retried
       if (await db.sale.findUnique({ where: { readerOrderId: String(d.orderId) } })) return new NextResponse("duplicate");
-      const { publisherMinor, platformMinor } = splitSale(d.amountMinor);
+      const { publisherMinor, platformMinor } = splitSale(gross);
       const sale = await db.$transaction(async (t) => {
         const s = await t.sale.create({
           data: {
             number: `SALE-${String(d.orderNumber ?? d.orderId).replace(/^ORD-/, "")}`.slice(0, 40), publisherId: book.publisherId, bookId: book.id, readerOrderId: String(d.orderId),
-            buyerLabel: String(d.buyer ?? "Reader").slice(0, 60), currency: d.currency, grossMinor: d.amountMinor, publisherMinor, platformMinor, paidAt: new Date(d.paidAt ?? Date.now()),
+            buyerLabel: String(d.buyer ?? "Reader").slice(0, 60), currency: cur, grossMinor: gross, paidCurrency: d.currency ?? cur, paidMinor: d.amountMinor ?? gross, publisherMinor, platformMinor, paidAt: new Date(d.paidAt ?? Date.now()),
           },
         });
-        await t.walletTx.create({ data: { publisherId: book.publisherId, currency: d.currency, type: "SALE_CREDIT", amountMinor: publisherMinor, description: `Sale of “${book.title}” (85% of ${formatMoney(d.amountMinor, d.currency)})`, saleId: s.id } });
+        await t.walletTx.create({ data: { publisherId: book.publisherId, currency: cur, type: "SALE_CREDIT", amountMinor: publisherMinor, description: `Sale of “${book.title}”`, saleId: s.id } });
         return s;
       });
       await emitEvent("sale.created", { id: sale.id, number: sale.number, book: book.title, publisher: book.publisher.publisherName, grossMinor: sale.grossMinor, publisherMinor, currency: sale.currency });
-      await notify(book.publisherId, "SALE_COMPLETED", "New sale", `“${book.title}” was bought for ${formatMoney(sale.grossMinor, sale.currency)}.`, "/sales");
-      await notify(book.publisherId, "EARNINGS_CREDITED", "Earnings credited", `${formatMoney(publisherMinor, d.currency)} was added to your ${d.currency} wallet.`, "/wallet");
+      await notify(book.publisherId, "SALE_COMPLETED", "New sale", `“${book.title}” was bought. You earned ${formatMoney(publisherMinor, sale.currency)}.`, "/sales");
+      await notify(book.publisherId, "EARNINGS_CREDITED", "Earnings credited", `${formatMoney(publisherMinor, cur)} was added to your ${cur} wallet.`, "/wallet");
     } else if (evt.type === "book.status") {
       const d = evt.data;
       const book = await db.book.findUnique({ where: { id: String(d.externalId) } });
