@@ -15,14 +15,20 @@ export const GET = route(async (req) => {
     ...(category ? { category } : {}),
     ...(q ? { OR: [{ title: { contains: q } }, { author: { contains: q } }, { category: { contains: q } }] } : {}),
   };
-  const [books, cats, owned] = await Promise.all([
-    db.book.findMany({ where, include: { publisher: true, prices: true }, orderBy: [{ approvedAt: "desc" }, { title: "asc" }], take: 200 }),
+  // The catalogue holds thousands of titles, so it is served a page at a time.
+  const size = Math.min(100, Math.max(1, Number(sp.get("pageSize")) || 48));
+  const page = Math.max(1, Number(sp.get("page")) || 1);
+  const [books, total, cats, owned] = await Promise.all([
+    db.book.findMany({ where, include: { publisher: true, prices: true }, orderBy: [{ approvedAt: "desc" }, { title: "asc" }], skip: (page - 1) * size, take: size }),
+    db.book.count({ where }),
     db.book.findMany({ where: { status: "APPROVED" }, select: { category: true }, distinct: ["category"], orderBy: { category: "asc" } }),
     v.user ? db.userBook.findMany({ where: { userId: v.user.id }, select: { bookId: true } }) : Promise.resolve([]),
   ]);
   const ownedSet = new Set(owned.map((o) => o.bookId));
   return {
     currency: v.currency,
+    total,
+    page,
     categories: cats.map((c) => c.category),
     books: await Promise.all(books.map(async (b) => ({ ...(await serializeBook(b, v.currency)), owned: ownedSet.has(b.id) }))),
   };

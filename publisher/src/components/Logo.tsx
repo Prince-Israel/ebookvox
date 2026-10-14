@@ -1,7 +1,9 @@
+import { useId } from "react";
 import { logoMarkSvg } from "./logo-svg";
 
 export function LogoMark({ size = 40, className = "" }: { size?: number; className?: string }) {
-  return <span role="img" aria-label="Ebookvox Publisher logo" className={`inline-block shrink-0 ${className}`} style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: logoMarkSvg().replace('width="64" height="64"', 'width="100%" height="100%"') }} />;
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  return <span role="img" aria-label="Ebookvox Publisher logo" className={`inline-block shrink-0 ${className}`} style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: logoMarkSvg(uid).replace('width="64" height="64"', 'width="100%" height="100%"') }} />;
 }
 
 export function Logo({ size = 36, tagline = false, className = "" }: { size?: number; tagline?: boolean; className?: string }) {

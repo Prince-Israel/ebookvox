@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Search } from "lucide-react";
-import { Async, EmptyState, PageTitle, Skeleton, cx } from "@/components/ui";
+import { Async, Button, EmptyState, PageTitle, Skeleton, cx } from "@/components/ui";
 import { BookCard, type BookItem } from "@/components/BookCard";
-import { useApi } from "@/lib/client";
+import { api, useApi } from "@/lib/client";
 
 const grid = "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4";
 const skeleton = <div className={grid}>{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-80" />)}</div>;
@@ -18,10 +18,27 @@ export default function BooksPage() {
     return () => clearTimeout(t);
   }, [q]);
 
-  const url = useMemo(() => `/api/books?${new URLSearchParams({ ...(debounced && { q: debounced }), ...(category && { category }) })}`, [debounced, category]);
-  const state = useApi<{ books: BookItem[]; categories: string[]; currency: string }>(url, "We couldn't load books. Please try again.");
-  const free = state.data?.books.filter((b) => b.isFree) ?? [];
-  const paid = state.data?.books.filter((b) => !b.isFree) ?? [];
+  const [more, setMore] = useState<BookItem[]>([]); // pages after the first
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const query = useMemo(() => new URLSearchParams({ ...(debounced && { q: debounced }), ...(category && { category }), ...(view !== "all" && { type: view }) }), [debounced, category, view]);
+  const url = `/api/books?${query}`;
+  const state = useApi<{ books: BookItem[]; categories: string[]; currency: string; total: number }>(url, "We couldn't load books. Please try again.");
+  useEffect(() => { setMore([]); setPage(1); }, [url]);
+  const all = [...(state.data?.books ?? []), ...more];
+  const free = all.filter((b) => b.isFree);
+  const paid = all.filter((b) => !b.isFree);
+  const total = state.data?.total ?? 0;
+  async function showMore() {
+    setLoadingMore(true);
+    try {
+      const next = page + 1;
+      const d = await api<{ books: BookItem[] }>(`/api/books?${new URLSearchParams({ ...Object.fromEntries(query), page: String(next) })}`);
+      setMore((m) => [...m, ...d.books.filter((b) => !m.some((x) => x.id === b.id))]);
+      setPage(next);
+    } catch {}
+    setLoadingMore(false);
+  }
 
   const chip = (active: boolean) => cx("h-10 shrink-0 rounded-full px-4 text-sm font-medium transition", active ? "bg-primary text-primary-fg" : "bg-surface2 text-fg hover:bg-line");
   const section = (id: string, title: string, list: BookItem[], emptyText: string) => (
@@ -49,7 +66,11 @@ export default function BooksPage() {
       <Async state={state} skeleton={skeleton}
         isEmpty={(d) => d.books.length === 0}
         empty={<EmptyState icon={<BookOpen className="size-8" />} title="No books found" body={debounced || category ? "Try a different search or category." : "New titles will appear here as soon as they're approved."} />}>
-        {() => (<>{view !== "paid" && section("free-books", "FREE BOOKS", free, "No free books match")}{view !== "free" && section("paid-books", "PAID BOOKS", paid, "No paid books match")}</>)}
+        {() => (<>
+          {view !== "paid" && section("free-books", "FREE BOOKS", free, "No free books match")}
+          {view !== "free" && section("paid-books", "PAID BOOKS", paid, "No paid books match")}
+          {all.length < total && <div className="mb-10 flex flex-col items-center gap-2"><p className="text-sm text-muted">Showing {all.length} of {total.toLocaleString()} books</p><Button variant="secondary" loading={loadingMore} onClick={showMore}>Show more books</Button></div>}
+        </>)}
       </Async>
     </div>
   );

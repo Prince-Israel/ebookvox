@@ -212,6 +212,8 @@ async function main() {
   section("Books, library & reading progress");
   const list = (await u.get("/api/books")).data;
   ok(list.books.length >= 10 && list.currency === "NGN", `book listing returns ${list.books.length} approved books`);
+  const pg1 = (await u.get("/api/books?pageSize=5")).data, pg2 = (await u.get("/api/books?pageSize=5&page=2")).data;
+  ok(pg1.books.length === 5 && pg1.total >= 10 && pg2.page === 2 && pg2.books.length > 0 && !pg2.books.some((b: any) => pg1.books.some((a: any) => a.id === b.id)), "the catalogue is served in pages (no overlap between pages)", { total: pg1.total });
   const free = list.books.filter((b: any) => b.isFree), paid = list.books.filter((b: any) => !b.isFree);
   ok(free.length >= 5 && paid.length >= 4, `free (${free.length}) and paid (${paid.length}) books both present`);
   ok(paid.every((b: any) => b.price?.currency === "NGN" && b.price.amountMinor > 0), "paid books priced in the user's currency (NGN)");
