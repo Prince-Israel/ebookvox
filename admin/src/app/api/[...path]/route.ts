@@ -405,10 +405,16 @@ on("GET", "support/unread", "support", async () => {
   }
   return { unread };
 });
+// A photo the customer attached (fetched through the signed service API; only admins with the support permission can load it).
+on("GET", "support/:service/attachments/:id", "support", async ({ p }) => {
+  const res = await (p[0] === "reader" ? reader : publisher)<Response>("GET", `tickets/attachments/${p[1]}`, { raw: true });
+  return new Response(res.body, { headers: { "content-type": res.headers.get("content-type") ?? "image/jpeg", "cache-control": "private, max-age=300" } });
+});
 on("GET", "support/:service/:id", "support", async ({ p }) => {
   const r = await svcOf(p[0])("GET", `tickets/${p[1]}`);
   await markRead(p[0], p[1]);
-  return { ticket: { ...r.ticket, service: p[0], userType: p[0] === "reader" ? "Reader" : "Publisher", status: normStatus(p[0], r.ticket.status) } };
+  const att = (m: any) => (m.attachments ?? []).map((a: any) => ({ id: a.id, name: a.name, url: `/api/support/${p[0]}/attachments/${a.id}` }));
+  return { ticket: { ...r.ticket, messages: r.ticket.messages.map((m: any) => ({ ...m, attachments: att(m) })), service: p[0], userType: p[0] === "reader" ? "Reader" : "Publisher", status: normStatus(p[0], r.ticket.status) } };
 });
 on("POST", "support/:service/:id/reply", "support", async ({ admin, p, body }) => {
   sensitive(admin, "support-reply", 60);

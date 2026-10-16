@@ -30,6 +30,7 @@ model User {
 
   // settings
   defaultVoice    String    @default("en-NG-EzinneNeural")
+  voiceChosen     Boolean   @default(false) // false → the default voice follows the user's country
   defaultSpeed    Float     @default(1)
   autoPlay        Boolean   @default(false)
   theme           String    @default("system") // light | dark | system
@@ -244,6 +245,21 @@ model TicketMessage {
   body       String
   createdAt  DateTime @default(now())
   ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  attachments TicketAttachment[]
+}
+
+// Photos / screenshots sent with a support message (re-encoded as JPEG, EXIF stripped).
+model TicketAttachment {
+  id        String        @id @default(cuid())
+  messageId String
+  name      String
+  mime      String
+  size      Int
+  data      Bytes
+  createdAt DateTime      @default(now())
+  message   TicketMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
 }
 
 model Document {

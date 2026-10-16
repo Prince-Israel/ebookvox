@@ -3,6 +3,7 @@ import "@fontsource-variable/fraunces";
 import "@fontsource-variable/inter";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui";
+import { KeyboardAware } from "@/components/KeyboardAware";
 
 export const metadata: Metadata = {
   title: { default: "Ebookvox — Your Words. Our Voice.", template: "%s · Ebookvox" },
@@ -17,6 +18,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  interactiveWidget: "resizes-content", // on Android the page shrinks to the space above the keyboard
   themeColor: [{ media: "(prefers-color-scheme: light)", color: "#fbf5ec" }, { media: "(prefers-color-scheme: dark)", color: "#17110e" }],
 };
 
@@ -31,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ToastProvider>{children}</ToastProvider>
+        <KeyboardAware />
       </body>
     </html>
   );

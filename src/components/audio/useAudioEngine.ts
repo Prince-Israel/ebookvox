@@ -119,7 +119,7 @@ export function useAudioEngine(opts: Opts) {
         if (wantPlay.current) await a.play();
         setLoading(false);
         // warm up the next passages
-        for (const n of [i + 1, i + 2]) if (n < chunks.current.length) fetchChunk(n).catch(() => {});
+        for (const n of [i + 1, i + 2, i + 3]) if (n < chunks.current.length) fetchChunk(n).catch(() => {});
       } catch (e) {
         if (my !== token.current) return;
         busy.current = false;
@@ -147,8 +147,9 @@ export function useAudioEngine(opts: Opts) {
         bump((n) => n + 1);
       }
     };
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
+    const ms = () => (typeof navigator !== "undefined" && "mediaSession" in navigator ? navigator.mediaSession : null);
+    const onPlay = () => { setPlaying(true); const m = ms(); if (m) m.playbackState = "playing"; };
+    const onPause = () => { setPlaying(false); const m = ms(); if (m) m.playbackState = "paused"; };
     const onEnd = () => {
       const i = indexRef.current;
       if (repeatRef.current === "one") return void startChunk(i, true);
@@ -198,6 +199,20 @@ export function useAudioEngine(opts: Opts) {
     },
     [startChunk],
   );
+
+  /** Stops playback for good and forgets the queue (used when the listener closes the player). */
+  const stop = useCallback(() => {
+    token.current++;
+    wantPlay.current = false;
+    busy.current = false;
+    const a = el();
+    a.pause();
+    a.removeAttribute("src");
+    a.load();
+    chunks.current = [];
+    durations.current = new Map();
+    setCount(0); setIndex(0); setPlaying(false); setLoading(false); setReady(false); setError(null); setCur(0); setDur(0);
+  }, []);
 
   const hasSrc = () => !!el().src && !el().src.startsWith("data:");
 
@@ -305,6 +320,6 @@ export function useAudioEngine(opts: Opts) {
     };
   }, [opts.meta?.title, opts.meta?.artist, play, pause, prev, next]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { count, index, playing, loading, error, cur, dur, volume, speed, repeat, ready, total, elapsed, unlock, load, play, pause, toggle, next, prev, goTo, seekTotal, setVolume, setSpeed, setRepeat, setVoice, audioEl: el };
+  return { count, index, playing, loading, error, cur, dur, volume, speed, repeat, ready, total, elapsed, unlock, load, stop, play, pause, toggle, next, prev, goTo, seekTotal, setVolume, setSpeed, setRepeat, setVoice, audioEl: el };
 }
 export type Engine = ReturnType<typeof useAudioEngine>;

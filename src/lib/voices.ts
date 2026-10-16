@@ -67,3 +67,36 @@ export function resolveVoice(id: string): Voice {
 
 export const DEFAULT_VOICE = VOICES[0].id;
 export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+
+// ---- Default voice by country ----------------------------------------------------------------------------------
+// A voice that matches the listener's own country when we have one; otherwise the closest general voice for their region.
+const COUNTRY_VOICE: Record<string, string> = {
+  NG: "en-NG-EzinneNeural", ZA: "en-ZA-LeahNeural", KE: "en-KE-AsiliaNeural", TZ: "en-TZ-ImaniNeural",
+  GB: "en-GB-SoniaNeural", IE: "en-IE-EmilyNeural", US: "en-US-JennyNeural", CA: "en-CA-ClaraNeural",
+  AU: "en-AU-NatashaNeural", NZ: "en-NZ-MollyNeural", IN: "en-IN-NeerjaNeural",
+};
+const set = (s: string) => new Set(s.split(" "));
+// Africa: no voice of their own → the nearest African voice (West/Central → Nigerian, East → Kenyan, Southern → South African, North → Kenyan).
+const AFRICA_WEST_CENTRAL = set("GH SL LR GM GN GW SN ML BF NE TG BJ CI CV MR CM TD GA GQ CG CD CF ST");
+const AFRICA_EAST = set("UG RW BI ET SO SS ER DJ SD MG MU SC KM");
+const AFRICA_SOUTH = set("ZW BW NA ZM MZ LS SZ MW AO");
+const AFRICA_NORTH = set("EG LY TN DZ MA EH");
+const EUROPE = set("AL AD AM AT AZ BY BE BA BG HR CY CZ DK EE FI FR GE DE GR HU IS IT XK LV LI LT LU MT MD MC ME NL MK NO PL PT RO RU SM RS SK SI ES SE CH UA VA GI GG JE IM FO AX");
+const SOUTH_ASIA = set("PK BD LK NP BT MV AF");
+const ASIA = set("CN JP KR KP TW HK MO MN TH VN LA KH MM MY SG ID PH BN TL KZ UZ TM KG TJ AE SA QA KW BH OM YE IQ IR IL JO LB SY TR PS");
+const OCEANIA = set("FJ PG WS TO VU SB KI FM MH PW NR TV CK NU");
+const AMERICAS = set("MX GT BZ HN SV NI CR PA CU JM HT DO PR BS BB TT GD LC VC AG DM KN CO VE GY SR EC PE BR BO PY UY AR CL GL BM KY");
+
+/** The voice to use before the user has chosen one: matched to their country, else their region's general voice. */
+export function voiceForCountry(code?: string | null, fallback: string = DEFAULT_VOICE): string {
+  const c = (code ?? "").toUpperCase();
+  if (COUNTRY_VOICE[c]) return COUNTRY_VOICE[c];
+  if (AFRICA_WEST_CENTRAL.has(c)) return COUNTRY_VOICE.NG;
+  if (AFRICA_EAST.has(c) || AFRICA_NORTH.has(c)) return COUNTRY_VOICE.KE;
+  if (AFRICA_SOUTH.has(c)) return COUNTRY_VOICE.ZA;
+  if (EUROPE.has(c)) return COUNTRY_VOICE.GB; // general European English
+  if (SOUTH_ASIA.has(c) || ASIA.has(c)) return COUNTRY_VOICE.IN; // general Asian English
+  if (OCEANIA.has(c)) return COUNTRY_VOICE.AU;
+  if (AMERICAS.has(c)) return COUNTRY_VOICE.US; // general American English
+  return fallback; // a country we can't place: whatever the platform's default voice is
+}

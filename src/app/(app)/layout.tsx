@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getUser, publicUser } from "@/lib/auth";
 import { UserProvider } from "@/components/UserContext";
 import { AppShell } from "@/components/AppShell";
+import { PlaybackProvider } from "@/components/audio/PlaybackProvider";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const unread = user ? await db.notification.count({ where: { userId: user.id, readAt: null } }) : 0;
   return (
     <UserProvider initial={user ? publicUser(user) : null} initialUnread={unread}>
-      <AppShell>{children}</AppShell>
+      <PlaybackProvider>
+        <AppShell>{children}</AppShell>
+      </PlaybackProvider>
     </UserProvider>
   );
 }

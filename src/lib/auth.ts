@@ -1,3 +1,4 @@
+import { voiceForCountry } from "./voices";
 import { cookies } from "next/headers";
 import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
@@ -57,6 +58,7 @@ export async function requireAdmin(): Promise<DbUser> {
 
 export function publicUser(u: DbUser) {
   const { passwordHash, ...rest } = u;
-  return { ...rest, hasPassword: !!passwordHash, emailVerified: !!u.emailVerifiedAt };
+  // Until the user picks a voice themselves, their default follows their country (and moves with it if they change country).
+  return { ...rest, defaultVoice: u.voiceChosen ? u.defaultVoice : voiceForCountry(u.country), hasPassword: !!passwordHash, emailVerified: !!u.emailVerifiedAt };
 }
 export type PublicUser = ReturnType<typeof publicUser>;

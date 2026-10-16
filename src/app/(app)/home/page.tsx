@@ -1,21 +1,19 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, BookOpen, ClipboardPaste, FileText, FileUp, History, Sparkles, Trash2, Type, UploadCloud, X } from "lucide-react";
 import { Async, Badge, Button, Card, EmptyState, ErrorState, Skeleton, Textarea, cx, useToast, when } from "@/components/ui";
 import { Cover } from "@/components/Cover";
 import { DocView } from "@/components/DocView";
 import { Player } from "@/components/audio/Player";
-import { useAudioEngine } from "@/components/audio/useAudioEngine";
+import { usePlayback, type Doc } from "@/components/audio/PlaybackProvider";
 import { useAuth } from "@/components/UserContext";
 import { AuthPrompt } from "@/components/AuthPrompt";
 import { BookCarousel } from "@/components/BookCarousel";
-import { DEFAULT_VOICE } from "@/lib/voices";
 import { api, ApiFailure, useApi } from "@/lib/client";
-import { parseBlocks, toChunks, wordCount } from "@/lib/text";
+import { wordCount } from "@/lib/text";
 import { formatMoney } from "@/lib/money";
 
-type Doc = { id: string; title: string; kind: string; text: string };
 const ACCEPT = ".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain";
 
 export default function HomePage() {
@@ -24,10 +22,7 @@ export default function HomePage() {
   const [prompt, setPrompt] = useState<string | null>(null);
   const toast = useToast();
   const [tab, setTab] = useState<"text" | "upload">("text");
-  const [voice, setVoice] = useState(user?.defaultVoice ?? DEFAULT_VOICE);
-  const [speed, setSpeed] = useState(user?.defaultSpeed ?? 1);
   const [text, setText] = useState("");
-  const [doc, setDoc] = useState<Doc | null>(null);
   const [busy, setBusy] = useState<null | "save" | "upload" | "open">(null);
   const [stage, setStage] = useState("");
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -35,9 +30,10 @@ export default function HomePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const lastFile = useRef<File | null>(null);
 
-  const engine = useAudioEngine({ voice, speed, meta: doc ? { title: doc.title, artist: "Ebookvox" } : undefined });
-  const blocks = useMemo(() => (doc ? parseBlocks(doc.text) : []), [doc]);
-  const chunks = useMemo(() => toChunks(blocks), [blocks]);
+  // The player is shared by the whole app, so audio keeps playing when you leave this page.
+  const pb = usePlayback();
+  const { engine, blocks, chunks, voice, setVoice, speed, setSpeed } = pb;
+  const doc: Doc | null = pb.session?.kind === "doc" ? pb.session.doc : null;
 
   const recent = useApi<{ documents: Array<{ id: string; title: string; kind: string; createdAt: string }> }>(user ? "/api/documents" : null, "We couldn't load your recent documents.");
   const library = useApi<{ reading: Array<{ id: string; title: string; author: string; coverHue: number; coverUrl: string | null; percent: number }> }>(user ? "/api/library" : null, "We couldn't load your books.");
@@ -51,8 +47,7 @@ export default function HomePage() {
   }, [user]);
 
   function start(d: Doc, autoplay: boolean) {
-    setDoc(d);
-    engine.load(toChunks(parseBlocks(d.text)).map((c) => c.text), 0, autoplay);
+    pb.openDoc(d, autoplay);
     recent.reload();
     setTimeout(() => document.getElementById("reader")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
@@ -114,17 +109,14 @@ export default function HomePage() {
   async function removeRecent(id: string) {
     try {
       await api(`/api/documents/${id}`, { method: "DELETE" });
-      if (doc?.id === id) { engine.pause(); setDoc(null); }
+      if (doc?.id === id) pb.stop();
       recent.reload();
     } catch (e) {
       toast((e as ApiFailure).message, "error");
     }
   }
 
-  function pickBlock(b: number) {
-    const idx = chunks.findIndex((c) => c.block === b);
-    if (idx >= 0) engine.goTo(idx, true);
-  }
+  const pickBlock = pb.pickBlock;
 
   const tabBtn = (id: "text" | "upload", label: string, Icon: typeof Type) => (
     <button role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={cx("flex h-12 flex-1 items-center justify-center gap-2 rounded-full text-sm font-semibold tracking-wide transition", tab === id ? "bg-primary text-primary-fg shadow-card" : "text-muted hover:text-fg")}>
@@ -184,11 +176,11 @@ export default function HomePage() {
         <section id="reader" aria-label="Reading view" className="anim-up scroll-mt-20">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2"><FileText className="size-5 shrink-0 text-accent" /><h2 className="truncate text-2xl font-semibold">{doc.title}</h2><Badge tone="accent">{doc.kind}</Badge></div>
-            <Button size="sm" variant="ghost" onClick={() => { engine.pause(); setDoc(null); }}><X className="size-4" /> Close</Button>
+            <Button size="sm" variant="ghost" onClick={pb.stop}><X className="size-4" /> Close</Button>
           </div>
           <div className="lg:grid lg:grid-cols-[1fr_24rem] lg:items-start lg:gap-6">
             <Card className="mb-4 max-h-[60dvh] overflow-y-auto lg:mb-0 lg:max-h-[70dvh]"><DocView blocks={blocks} chunks={chunks} activeChunk={engine.index} onPick={pickBlock} /></Card>
-            <div className="sticky bottom-20 z-20 lg:top-20 lg:bottom-auto">
+            <div className="hidden lg:sticky lg:top-20 lg:block">
               <Player engine={engine} voice={voice} onVoice={setVoice} speed={speed} onSpeed={setSpeed} />
             </div>
           </div>

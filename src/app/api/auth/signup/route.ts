@@ -1,3 +1,4 @@
+import { voiceForCountry } from "@/lib/voices";
 import { db } from "@/lib/db";
 import { ApiError, clientIp, rateLimit, readJson, route } from "@/lib/api";
 import { createSession, hashPassword, publicUser } from "@/lib/auth";
@@ -11,7 +12,7 @@ export const POST = route(async (req) => {
   const d = signUpSchema.parse(await readJson(req));
   if (await db.user.findUnique({ where: { email: d.email } }))
     throw new ApiError(409, "An account with this email already exists. Try signing in.", { email: "This email is already registered." });
-  const defaultVoice = (await db.platformConfig.findUnique({ where: { key: "defaultVoice" } }))?.value;
+  const platformVoice = (await db.platformConfig.findUnique({ where: { key: "defaultVoice" } }))?.value ?? undefined;
   const user = await db.user.create({
     data: {
       email: d.email,
@@ -23,7 +24,7 @@ export const POST = route(async (req) => {
       currency: currencyForCountry(d.country),
       phoneCountry: d.phoneCountry,
       phone: normalizePhone(d.phone, d.phoneCountry),
-      ...(defaultVoice ? { defaultVoice } : {}),
+      defaultVoice: voiceForCountry(d.country, platformVoice),
     },
   });
   await emitEvent("user.created", { id: user.id, name: `${user.firstName} ${user.lastName}`, email: user.email, country: user.country });

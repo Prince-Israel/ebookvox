@@ -33,6 +33,7 @@ export const PATCH = route(async (req) => {
   delete data.phone;
   delete data.phoneCountry;
   if (d.country) data.currency = currencyForCountry(d.country);
+  if (d.defaultVoice) data.voiceChosen = true; // from now on their own choice wins over the country default
   if (d.phone !== undefined || d.phoneCountry !== undefined) {
     const pc = d.phoneCountry ?? u.phoneCountry ?? d.country ?? u.country;
     const raw = d.phone ?? "";

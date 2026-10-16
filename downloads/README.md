@@ -22,3 +22,9 @@ EBOOKVOX_URL=https://reader.your-domain.com npx cap sync
 ```
 
 For a Play Store release use `./gradlew bundleRelease` with your own signing key; for the App Store archive and sign in Xcode.
+
+## Listening with the screen off
+
+- **Android:** while Ebookvox is reading, a "Reading aloud" notification appears (allow notifications when asked). It keeps the narration going when you lock the phone, let the screen dim, or switch to another app. Tap **Stop** on the notification, press pause in the app, or swipe the app away to stop.
+- **iOS:** the app declares the *audio* background mode, so narration continues with the screen locked or the app minimised; use the lock-screen controls to pause.
+- Moving between Home, Books, Library and Profile never interrupts reading — a mini player follows you. Only pause, the ✕ on the mini player, or closing the app stops it.

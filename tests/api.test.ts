@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import sharp from "sharp";
+import { voiceForCountry } from "../src/lib/voices";
 
 const BASE = process.env.BASE ?? "http://localhost:3100";
 const MOCK = "http://localhost:4010";
@@ -381,6 +382,37 @@ async function main() {
   ok(all.data.unread === 0, "mark all read → unread = 0");
   ok((await gb.get("/api/notifications")).data.notifications.every((n: any) => true) && (await gb.post("/api/notifications/read", { ids: [one1.id] })).data.unread >= 0, "can't mark another user's notification (no-op)");
   ok((await u.get("/api/notifications")).data.notifications.some((n: any) => n.id === one1.id && n.readAt), "read state persisted");
+
+  // ---------------------------------------------------------------- default voice by country
+  section("Default voice follows the user's country");
+  const voiceCases: Array<[string, string]> = [["NG", "en-NG-EzinneNeural"], ["GB", "en-GB-SoniaNeural"], ["US", "en-US-JennyNeural"], ["KE", "en-KE-AsiliaNeural"], ["ZA", "en-ZA-LeahNeural"], ["GH", "en-NG-EzinneNeural"], ["ZW", "en-ZA-LeahNeural"], ["UG", "en-KE-AsiliaNeural"], ["DE", "en-GB-SoniaNeural"], ["IE", "en-IE-EmilyNeural"], ["BR", "en-US-JennyNeural"], ["JP", "en-IN-NeerjaNeural"], ["IN", "en-IN-NeerjaNeural"], ["AU", "en-AU-NatashaNeural"], ["FJ", "en-AU-NatashaNeural"]];
+  for (const [cc, want] of voiceCases) if (voiceForCountry(cc) !== want) ok(false, `${cc} default voice`, { got: voiceForCountry(cc), want });
+  ok(true, `default voice matches ${voiceCases.length} countries (Nigeria→Nigerian, UK→British, US→American, other African→nearest African, Europe→British, Americas→American, Asia→Indian English, Pacific→Australian)`);
+  ok((await gb.get("/api/me")).data.user.defaultVoice === "en-GB-SoniaNeural" && (await us.get("/api/me")).data.user.defaultVoice === "en-US-JennyNeural" && (await new Client("NG").get("/api/me")).status === 401, "new British / American accounts start with a British / American voice");
+  ok((await de.patch("/api/me", { country: "KE" })).data.user.defaultVoice === "en-KE-AsiliaNeural", "until they choose one, the default voice moves with the user's country");
+  ok((await de.patch("/api/me", { defaultVoice: "en-US-GuyNeural" })).data.user.defaultVoice === "en-US-GuyNeural", "a voice the user picks is saved");
+  ok((await de.patch("/api/me", { country: "DE" })).data.user.defaultVoice === "en-US-GuyNeural", "a chosen voice is kept when the country changes");
+
+  // ---------------------------------------------------------------- support photos
+  section("Support chat photos");
+  const photo = await sharp({ create: { width: 640, height: 480, channels: 3, background: "#2a9d8f" } }).png().toBuffer();
+  const mkForm = (fields: Record<string, string>, files: Array<{ name: string; type: string; data: Buffer }>) => { const f = new FormData(); for (const [k, v] of Object.entries(fields)) f.append(k, v); for (const x of files) f.append("files", new Blob([new Uint8Array(x.data)], { type: x.type }), x.name); return f; };
+  const tk1 = await u.req("POST", "/api/tickets", mkForm({ subject: "Photo issue", message: "Here are two screenshots of the problem." }, [{ name: "a.png", type: "image/png", data: photo }, { name: "b.png", type: "image/png", data: photo }]));
+  ok(tk1.status === 200 && !!tk1.data.ticket.id, "ticket created with two photos", tk1.data);
+  const tkd = (await u.get(`/api/tickets/${tk1.data.ticket.id}`)).data.ticket;
+  ok(tkd.messages[0].attachments.length === 2 && tkd.messages[0].attachments[0].url.startsWith("/api/tickets/attachments/"), "messages list their photos");
+  const pimg = await fetch(BASE + tkd.messages[0].attachments[0].url, { headers: { cookie: [...u.jar].map(([k, v]) => `${k}=${v}`).join("; ") } });
+  ok(pimg.status === 200 && pimg.headers.get("content-type") === "image/jpeg" && (await pimg.arrayBuffer()).byteLength > 200, "photo is served back (re-encoded as JPEG)");
+  ok((await gb.get(tkd.messages[0].attachments[0].url)).status === 404, "another user can't open someone else's photo");
+  ok((await new Client().get(tkd.messages[0].attachments[0].url)).status === 401, "photos need sign-in");
+  const rp = await u.req("POST", `/api/tickets/${tk1.data.ticket.id}/reply`, mkForm({ message: "" }, [{ name: "c.png", type: "image/png", data: photo }]));
+  ok(rp.status === 200, "a reply can be photo-only", rp.data);
+  ok((await u.get("/api/tickets")).data.tickets.find((t: any) => t.id === tk1.data.ticket.id)?.lastMessage === "📷 Photo", "ticket list shows “📷 Photo” for a photo-only message");
+  const fake = await u.req("POST", `/api/tickets/${tk1.data.ticket.id}/reply`, mkForm({ message: "x" }, [{ name: "evil.png", type: "image/png", data: Buffer.from("<?php echo 1; ?>") }]));
+  ok(fake.status === 415, "a file that only claims to be an image is refused (checked by its bytes)", fake.data);
+  const many = await u.req("POST", `/api/tickets/${tk1.data.ticket.id}/reply`, mkForm({ message: "x" }, Array.from({ length: 5 }, (_, i) => ({ name: `p${i}.png`, type: "image/png", data: photo }))));
+  ok(many.status === 400, "more than four photos is refused", many.data);
+  ok((await u.req("POST", `/api/tickets/${tk1.data.ticket.id}/reply`, mkForm({ message: "" }, []))).status === 400, "an empty reply is refused");
 
   // clear all notifications
   const nBefore = (await u.get("/api/notifications")).data.notifications.length;

@@ -206,17 +206,22 @@ on("GET", "orders/:id", async ({ p }) => {
 });
 
 // ---- support ----
-const ticketRow = (t: any) => ({ id: t.id, subject: t.subject, status: t.status, createdAt: t.createdAt, updatedAt: t.updatedAt, name: `${t.user.firstName} ${t.user.lastName}`.trim(), email: t.user.email, userId: t.user.id, lastMessage: t.messages?.[0]?.body ?? "", lastFrom: t.messages?.[0]?.authorRole ?? "USER" });
+const ticketRow = (t: any) => ({ id: t.id, subject: t.subject, status: t.status, createdAt: t.createdAt, updatedAt: t.updatedAt, name: `${t.user.firstName} ${t.user.lastName}`.trim(), email: t.user.email, userId: t.user.id, lastMessage: t.messages?.[0]?.body || "📷 Photo", lastFrom: t.messages?.[0]?.authorRole ?? "USER" });
 on("GET", "tickets", async ({ q }) => {
   const s = q.get("q")?.trim();
   const where: any = { ...(q.get("status") ? { status: q.get("status") } : {}), ...(q.get("userId") ? { userId: q.get("userId") } : {}), ...(s ? { OR: [{ subject: { contains: s } }, { user: { email: { contains: s } } }] } : {}) };
   const [rows, total] = await Promise.all([db.ticket.findMany({ where, include: { user: true, messages: { orderBy: { createdAt: "desc" }, take: 1 } }, orderBy: { updatedAt: "desc" }, ...page(q) }), db.ticket.count({ where })]);
   return { total, tickets: rows.map(ticketRow) };
 });
+on("GET", "tickets/attachments/:id", async ({ p }) => {
+  const a = await db.ticketAttachment.findUnique({ where: { id: p[0] } });
+  if (!a) throw new ApiError(404, "Photo not found.");
+  return new Response(new Uint8Array(a.data), { headers: { "content-type": a.mime, "cache-control": "private, max-age=300" } });
+});
 on("GET", "tickets/:id", async ({ p }) => {
-  const t = await db.ticket.findUnique({ where: { id: p[0] }, include: { user: true, messages: { orderBy: { createdAt: "asc" } } } });
+  const t = await db.ticket.findUnique({ where: { id: p[0] }, include: { user: true, messages: { orderBy: { createdAt: "asc" }, include: { attachments: { select: { id: true, name: true } } } } } });
   if (!t) throw new ApiError(404, "Ticket not found.");
-  return { ticket: { ...ticketRow(t), messages: t.messages.map((m) => ({ id: m.id, from: m.authorRole === "ADMIN" ? "ADMIN" : "USER", body: m.body, createdAt: m.createdAt, author: m.authorRole === "ADMIN" ? (m.authorId.startsWith("admin:") ? m.authorId.slice(6) : "Support") : `${t.user.firstName} ${t.user.lastName}`.trim() })) } };
+  return { ticket: { ...ticketRow(t), messages: t.messages.map((m) => ({ id: m.id, from: m.authorRole === "ADMIN" ? "ADMIN" : "USER", body: m.body, createdAt: m.createdAt, attachments: m.attachments.map((a) => ({ id: a.id, name: a.name })), author: m.authorRole === "ADMIN" ? (m.authorId.startsWith("admin:") ? m.authorId.slice(6) : "Support") : `${t.user.firstName} ${t.user.lastName}`.trim() })) } };
 });
 on("POST", "tickets/:id/reply", async ({ p, body }) => {
   const d = z.object({ message: z.string().trim().min(1).max(5000), adminName: z.string().max(100).default("Support") }).parse(body);
@@ -276,7 +281,7 @@ async function dispatch(req: NextRequest, { params }: { params: Promise<{ path: 
       let json: any = {};
       if (body) { try { json = JSON.parse(body); } catch { throw new ApiError(400, "Invalid JSON body."); } }
       const out = await h({ q: req.nextUrl.searchParams, body: json, p: m.slice(1).map(decodeURIComponent) });
-      return NextResponse.json(out);
+      return out instanceof Response ? out : NextResponse.json(out);
     }
   }
   throw new ApiError(404, "Unknown internal endpoint.");

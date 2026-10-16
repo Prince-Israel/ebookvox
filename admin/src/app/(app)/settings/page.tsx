@@ -134,7 +134,7 @@ function PlatformConfig({ data, editable, onSaved }: { data: S; editable: boolea
         {editable && <Button className="mt-4" loading={busy === "currency"} onClick={() => save("currency", { minWithdrawals: Object.fromEntries(Object.entries(mins).map(([k, v]) => [k, Number(v)])) })}>Save currency configuration</Button>}
       </Section>
       <Section title="Voice configuration">
-        <div className="grid items-end gap-4 sm:grid-cols-[1fr_auto]"><Select label="Default voice for new readers" id="voice" value={voice} disabled={ro} onChange={(e) => setVoice(e.target.value)}>{VOICES.map((v) => <option key={v.id} value={v.id}>{v.name} · {v.accent} · {v.style}</option>)}</Select>{editable && <Button loading={busy === "voice"} onClick={() => save("voice", { defaultVoice: voice })}>Save voice</Button>}</div>
+        <div className="grid items-end gap-4 sm:grid-cols-[1fr_auto]"><Select label="Fallback voice (new readers start with a voice matching their country; this is used when the country is unrecognised)" id="voice" value={voice} disabled={ro} onChange={(e) => setVoice(e.target.value)}>{VOICES.map((v) => <option key={v.id} value={v.id}>{v.name} · {v.accent} · {v.style}</option>)}</Select>{editable && <Button loading={busy === "voice"} onClick={() => save("voice", { defaultVoice: voice })}>Save voice</Button>}</div>
       </Section>
     </>
   );

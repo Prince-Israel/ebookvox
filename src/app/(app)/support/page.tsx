@@ -5,6 +5,7 @@ import { ChevronRight, LifeBuoy, Plus } from "lucide-react";
 import { Async, Badge, Banner, Button, EmptyState, PageTitle, Sheet, Skeleton, Textarea, Input, useToast, when } from "@/components/ui";
 import { STATUS_LABEL, STATUS_TONE } from "@/components/Conversation";
 import { api, ApiFailure, useApi } from "@/lib/client";
+import { AttachPhotos } from "@/components/Attach";
 import { useRouter } from "next/navigation";
 
 type Ticket = { id: string; subject: string; status: keyof typeof STATUS_LABEL; updatedAt: string; lastMessage: string; lastFrom: string };
@@ -17,6 +18,7 @@ export default function SupportPage() {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +28,13 @@ export default function SupportPage() {
     setFields({});
     setError(null);
     try {
-      const d = await api<{ ticket: { id: string } }>("/api/tickets", { method: "POST", json: { subject, message } });
+      let d: { ticket: { id: string } };
+      if (files.length) {
+        const fd = new FormData();
+        fd.append("subject", subject); fd.append("message", message);
+        files.forEach((f) => fd.append("files", f));
+        d = await api("/api/tickets", { method: "POST", body: fd });
+      } else d = await api("/api/tickets", { method: "POST", json: { subject, message } });
       toast("Ticket created. We'll reply as soon as we can.");
       router.push(`/support/${d.ticket.id}`);
     } catch (err) {
@@ -64,6 +72,7 @@ export default function SupportPage() {
           {error && Object.keys(fields).length === 0 && <Banner tone="danger">{error}</Banner>}
           <Input label="Subject" id="t-subject" value={subject} onChange={(e) => setSubject(e.target.value)} error={fields.subject} maxLength={120} placeholder="e.g. Payment didn't unlock my book" />
           <Textarea label="Message" id="t-message" rows={6} value={message} onChange={(e) => setMessage(e.target.value)} error={fields.message} placeholder="Tell us what happened…" />
+          <AttachPhotos files={files} onChange={setFiles} disabled={busy} />
           <Button type="submit" size="lg" className="w-full" loading={busy}>Submit ticket</Button>
         </form>
       </Sheet>

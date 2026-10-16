@@ -14,7 +14,6 @@ const fmt = (s: number) => {
 
 export function Player({ engine: e, voice, onVoice, speed, onSpeed, className }: { engine: Engine; voice: string; onVoice: (id: string) => void; speed: number; onSpeed: (s: number) => void; className?: string }) {
   const [picker, setPicker] = useState(false);
-  const [speedOpen, setSpeedOpen] = useState(false);
   const v = resolveVoice(voice);
   const pct = e.total ? Math.min(100, (e.elapsed / e.total) * 100) : 0;
   const disabled = e.count === 0;
@@ -59,26 +58,19 @@ export function Player({ engine: e, voice, onVoice, speed, onSpeed, className }:
           {e.loading && !e.playing ? <Spinner className="size-7" /> : e.playing ? <Pause className="size-7 fill-current" /> : <Play className="ml-1 size-7 fill-current" />}
         </button>
         <button onClick={e.next} aria-label="Next passage" disabled={disabled} className={iconBtn}><SkipForward className="size-6" /></button>
-        <div className="relative">
-          <button onClick={() => setSpeedOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={speedOpen} aria-label={`Playback speed ${speed}x`} className="h-11 min-w-12 rounded-full px-3 text-sm font-semibold tabular-nums hover:bg-surface2">{speed}x</button>
-          {speedOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setSpeedOpen(false)} />
-              <ul role="listbox" aria-label="Playback speed" className="anim-up absolute bottom-14 right-0 z-20 w-28 overflow-hidden rounded-2xl border border-line bg-surface py-1 shadow-pop">
-                {SPEEDS.map((s) => (
-                  <li key={s}>
-                    <button role="option" aria-selected={s === speed} onClick={() => { onSpeed(s); setSpeedOpen(false); }} className={cx("flex h-10 w-full items-center justify-between px-4 text-sm hover:bg-surface2", s === speed && "font-semibold text-accent")}>
-                      {s}x {s === speed && "✓"}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+        <span className="size-11" aria-hidden />
+      </div>
+
+      <div className="mt-4" role="group" aria-label="Playback speed">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Speed</p>
+        <div className="grid grid-cols-6 gap-1.5">
+          {SPEEDS.map((s) => (
+            <button key={s} onClick={() => onSpeed(s)} aria-pressed={s === speed} aria-label={`${s}x speed`} className={cx("h-10 rounded-full text-sm font-semibold tabular-nums transition", s === speed ? "bg-primary text-primary-fg" : "bg-surface2 text-fg hover:bg-line")}>{s}x</button>
+          ))}
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-3 border-t border-line pt-3">
+      <div className="mt-4 flex items-center gap-3 border-t border-line pt-4">
         <button onClick={() => setPicker(true)} className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-surface2 px-3 py-2 text-left hover:bg-line" aria-label={`Voice: ${v.name}, ${v.accent}. Change voice`}>
           <Mic2 className="size-5 shrink-0 text-accent" />
           <span className="min-w-0">

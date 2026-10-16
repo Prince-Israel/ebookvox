@@ -33,7 +33,7 @@ export function Button({ variant = "primary", size = "md", loading, className, c
 
 export function Card({ className, children, ...p }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div {...p} className={cx("rounded-3xl border border-line bg-surface p-5 shadow-card sm:p-6", className)}>
+    <div {...p} className={cx("rounded-3xl border border-line bg-surface p-4 shadow-card sm:p-6", className)}>
       {children}
     </div>
   );
@@ -114,9 +114,9 @@ export function Async<T>({ state, skeleton, isEmpty, empty, children }: { state:
 export function Banner({ tone = "info", children, action }: { tone?: "info" | "success" | "danger" | "warn"; children: ReactNode; action?: ReactNode }) {
   const t = { info: "bg-accent-soft text-accent-fg", success: "bg-success-soft text-success", danger: "bg-danger-soft text-danger", warn: "bg-warn-soft text-warn" }[tone];
   return (
-    <div role={tone === "danger" ? "alert" : "status"} className={cx("flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium", t)}>
-      <div className="min-w-0 flex-1">{children}</div>
-      {action}
+    <div role={tone === "danger" ? "alert" : "status"} className={cx("flex flex-col items-start gap-3 rounded-2xl px-4 py-3 text-sm font-medium sm:flex-row sm:items-center", t)}>
+      <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">{children}</div>
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }
@@ -184,8 +184,8 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
 export function PageTitle({ title, sub, action }: { title: string; sub?: string; action?: ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-3xl font-semibold sm:text-4xl">{title}</h1>
+      <div className="min-w-0">
+        <h1 className="break-words text-3xl font-semibold sm:text-4xl">{title}</h1>
         {sub && <p className="mt-1 text-muted">{sub}</p>}
       </div>
       {action}

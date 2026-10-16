@@ -120,7 +120,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* mobile bottom nav */}
-      <nav aria-label="Main" className="safe-b fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur lg:hidden">
+      <nav aria-label="Main" data-hide-on-kb className="safe-b fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur lg:hidden">
         <ul className="mx-auto grid max-w-lg grid-cols-4">
           {MAIN.map(({ href, label, Icon }) => (
             <li key={href}>

@@ -371,6 +371,20 @@ async function main() {
   ok((await S.get("/api/support?service=reader")).data.tickets.every((t: any) => t.service === "reader"), "service filter");
   ok((await S.get("/api/support?status=OPEN")).data.tickets.length >= 2, "status filter: Open");
   const rId = tR.data.ticket.id, pId = tP.data.ticket.id;
+  // photos sent by customers are visible to support staff (through the signed service API) — and only to them
+  const shotPng = await sharp({ create: { width: 400, height: 300, channels: 3, background: "#e76f51" } }).png().toBuffer();
+  const photoForm = (subject: string) => { const f = new FormData(); f.append("subject", subject); f.append("message", "Screenshot attached for you."); f.append("files", new Blob([new Uint8Array(shotPng)], { type: "image/png" }), "screen.png"); return f; };
+  const tPhotoR = await rNG.c.req("POST", "/api/tickets", photoForm("Reader photo ticket"));
+  const tPhotoP = await pubB.c.req("POST", "/api/tickets", photoForm("Publisher photo ticket"));
+  ok(tPhotoR.status === 200 && tPhotoP.status === 200, "a Reader and a Publisher can each open a ticket with a photo", [tPhotoR.status, tPhotoP.status, tPhotoP.data]);
+  for (const [svc, id] of [["reader", tPhotoR.data.ticket.id], ["publisher", tPhotoP.data.ticket.id]] as const) {
+    const d = (await S.get(`/api/support/${svc}/${id}`)).data.ticket;
+    const att = d.messages[0].attachments?.[0];
+    ok(att?.url === `/api/support/${svc}/attachments/${att?.id}`, `admin sees the ${svc}'s photo in the conversation`, d.messages[0]);
+    const img = await S.get(att.url);
+    ok(img.status === 200 && (img.res.headers.get("content-type") ?? "").startsWith("image/"), `admin can open the ${svc}'s photo`);
+    ok((await new Client(BASE).get(att.url)).status === 401, `the ${svc} photo is not public`);
+  }
   const un0 = (await S.get("/api/support/unread")).data.unread;
   ok(un0 >= 2, "admin Support badge counts conversations awaiting a reply", un0);
   await S.get(`/api/support/reader/${rId}`);
@@ -442,6 +456,8 @@ async function main() {
   ok((await FIN.post("/api/me/password", { currentPassword: "TempPassw0rd!", newPassword: "FinanceNew#2026", confirmPassword: "FinanceNew#2026" })).status === 200, "password changed");
   ok((await FIN.get("/api/payouts")).status === 200 && (await FIN.get("/api/sales")).status === 200 && (await FIN.get("/api/transactions")).status === 200, "finance can use payouts, sales and transactions");
   const denied = async (c: Client, paths: string[], label: string) => { const bad: string[] = []; for (const p of paths) { const r = await c.get(p); if (r.status !== 403) bad.push(`${p}:${r.status}`); } ok(bad.length === 0, label, bad); };
+  const someAtt = (await S.get(`/api/support/reader/${tPhotoR.data.ticket.id}`)).data.ticket.messages[0].attachments[0];
+  ok((await FIN.get(someAtt.url)).status === 403, "an admin without the support permission can't open customer photos");
   await denied(FIN, ["/api/support/unread", "/api/users", "/api/publishers", "/api/authors", "/api/books", "/api/book-review", "/api/support", "/api/activity", "/api/admins", `/api/users/${rNG.id}`, "/api/publisher-books"], "finance is blocked server-side from users, publishers, books, review, support, activity and admins");
   ok((await FIN.post(`/api/book-review/${bookC.id}/decision`, { action: "approve" })).status === 403 && (await FIN.del("/api/activity")).status === 403 && (await FIN.put("/api/settings/categories", { categories: ["X"] })).status === 403, "finance can't approve books, clear logs or change settings");
   const finDash = (await FIN.get("/api/dashboard")).data;
@@ -522,7 +538,7 @@ async function main() {
   await S.put("/api/settings/currency", { minWithdrawals: { NGN: 100000, USD: 100, GBP: 80, EUR: 95 } });
   ok((await S.put("/api/settings/voice", { defaultVoice: "en-GB-RyanNeural" })).status === 200, "default voice saved and pushed to the Reader");
   const nv = await readerUser("voicecheck", "NG");
-  ok(nv.r.data.user.defaultVoice === "en-GB-RyanNeural", "new readers get the configured default voice", nv.r.data.user.defaultVoice);
+  ok(nv.r.data.user.defaultVoice === "en-NG-EzinneNeural", "new readers start with a voice matching their country; the Admin default only applies to countries we can't place", nv.r.data.user.defaultVoice);
   ok((await S.put("/api/settings/company", { name: "Ebookvox", address: "Lagos", website: "https://ebookvox.example" })).status === 200 && (await S.put("/api/settings/supportEmail", { supportEmail: "help@ebookvox.example" })).status === 200, "company information and support email saved");
   ok((await S.put("/api/settings/supportEmail", { supportEmail: "not-an-email" })).status === 400, "settings are validated");
   ok((await S.get("/api/settings")).data.settings.supportEmail === "help@ebookvox.example", "settings persist");

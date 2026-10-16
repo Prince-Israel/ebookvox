@@ -1,21 +1,23 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { rateLimit, readJson, route } from "@/lib/api";
+import { rateLimit, route } from "@/lib/api";
+import { readTicketBody } from "@/lib/attachments";
 import { requirePublisher } from "@/lib/auth";
 import { notifyAdmins } from "@/lib/notify";
 import { emitEvent } from "@/lib/events";
 
 export const GET = route(async () => {
   const u = await requirePublisher();
-  const tickets = await db.ticket.findMany({ where: { userId: u.id }, orderBy: { updatedAt: "desc" }, include: { messages: { orderBy: { createdAt: "desc" }, take: 1 } } });
-  return { tickets: tickets.map((t) => ({ id: t.id, subject: t.subject, status: t.status, updatedAt: t.updatedAt, lastMessage: t.messages[0]?.body ?? "", lastFrom: t.messages[0]?.authorRole ?? "PUBLISHER" })) };
+  const tickets = await db.ticket.findMany({ where: { userId: u.id }, orderBy: { updatedAt: "desc" }, include: { messages: { orderBy: { createdAt: "desc" }, take: 1, include: { _count: { select: { attachments: true } } } } } });
+  return { tickets: tickets.map((t) => ({ id: t.id, subject: t.subject, status: t.status, updatedAt: t.updatedAt, lastMessage: t.messages[0]?.body || (t.messages[0]?._count.attachments ? "📷 Photo" : ""), lastFrom: t.messages[0]?.authorRole ?? "PUBLISHER" })) };
 });
 
 export const POST = route(async (req) => {
   const u = await requirePublisher();
   rateLimit(`ticket:${u.id}`, 10, 3600_000);
-  const d = z.object({ subject: z.string().trim().min(3, "Add a subject (at least 3 characters).").max(120), message: z.string().trim().min(5, "Please describe your issue (at least 5 characters).").max(5000) }).parse(await readJson(req));
-  const t = await db.ticket.create({ data: { userId: u.id, subject: d.subject, status: "WAITING_ADMIN", messages: { create: { authorId: u.id, authorRole: "PUBLISHER", body: d.message } } } });
+  const { fields, images } = await readTicketBody(req);
+  const d = z.object({ subject: z.string().trim().min(3, "Add a subject (at least 3 characters).").max(120), message: z.string().trim().min(5, "Please describe your issue (at least 5 characters).").max(5000) }).parse(fields);
+  const t = await db.ticket.create({ data: { userId: u.id, subject: d.subject, status: "WAITING_ADMIN", messages: { create: { authorId: u.id, authorRole: "PUBLISHER", body: d.message, attachments: { create: images.map((i) => ({ name: i.name, mime: i.mime, size: i.size, data: new Uint8Array(i.data) })) } } } } });
   await emitEvent("ticket.message", { ticketId: t.id, subject: d.subject, from: "PUBLISHER", name: u.publisherName, email: u.email, created: true });
   await notifyAdmins("SUPPORT", "New publisher ticket", `${u.publisherName}: ${d.subject}`, "/admin/support");
   return { ticket: { id: t.id } };

@@ -1,4 +1,5 @@
 "use client";
+import { MessagePhotos } from "@/components/Attach";
 import Link from "next/link";
 import { use, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Send } from "lucide-react";
@@ -31,7 +32,7 @@ export default function TicketPage({ params }: { params: Promise<{ service: stri
             <div><div className="mb-1 flex flex-wrap items-center gap-2"><h1 className="text-3xl font-semibold">{t.subject}</h1><StatusBadge status={t.status} /><Badge tone={service === "publisher" ? "accent" : "neutral"}>{t.userType}</Badge></div><p className="text-sm text-muted">{t.name} · {t.email}</p></div>
             <Card><ul className="space-y-4" aria-label="Conversation">{t.messages.map((m: any) => (
               <li key={m.id} className={cx("flex flex-col", m.from === "ADMIN" ? "items-end" : "items-start")}>
-                <div className={cx("max-w-[88%] whitespace-pre-wrap break-words rounded-3xl px-5 py-3 sm:max-w-[75%]", m.from === "ADMIN" ? "rounded-br-lg bg-primary text-primary-fg" : "rounded-bl-lg bg-surface2")}>{m.body}</div>
+                <div className={cx("max-w-[88%] break-words rounded-3xl px-4 py-3 sm:max-w-[75%] sm:px-5", m.from === "ADMIN" ? "rounded-br-lg bg-primary text-primary-fg" : "rounded-bl-lg bg-surface2")}>{m.body && <p className="whitespace-pre-wrap">{m.body}</p>}<MessagePhotos photos={m.attachments} /></div>
                 <span className="mt-1 px-2 text-xs text-muted">{m.from === "ADMIN" ? `${m.author} (admin)` : m.author} · {dateFmt(m.createdAt, true)}</span>
               </li>))}<div ref={end} /></ul></Card>
             <div className="flex flex-wrap items-center gap-2"><span className="text-sm text-muted">Status:</span>{statuses.map(([k, l]) => <Button key={k} size="sm" variant={t.status === k ? "primary" : "secondary"} onClick={() => setStatus(k)}>{l}</Button>)}</div>

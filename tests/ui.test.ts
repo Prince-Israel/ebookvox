@@ -121,6 +121,8 @@ async function main() {
   const para = (n: number) => `Paragraph number ${n} is here to give the player plenty to say. It has a few sentences so that the audio lasts long enough for every control to be exercised properly, one after another.`;
   await p.locator("#ra-text").fill(["Chapter heading", ...Array.from({ length: 8 }, (_, i) => para(i + 1))].join("\n\n"));
   await readBtn.click();
+  // On a phone the controls live in the mini player; its "Open full player" button shows the whole player in a sheet.
+  await p.getByRole("button", { name: /Open full player/ }).first().click();
   await p.getByRole("region", { name: "Audio player" }).first().waitFor();
   await p.waitForFunction(() => { const a = (window as any).__cur; return a && !a.paused && a.currentTime > 0.3 && !a.src.startsWith("data:"); }, null, { timeout: 40000 });
   ok(true, "text is spoken (audio playing, currentTime advancing)");
@@ -128,57 +130,80 @@ async function main() {
   await shot("06-player");
   await overflow(p, "home + player");
   // speed
-  await p.getByRole("button", { name: /Playback speed 1x/ }).click();
-  await p.getByRole("option", { name: /^1\.5x/ }).click();
+  const speedBtns = p.getByRole("group", { name: "Playback speed" }).getByRole("button");
+  ok((await speedBtns.count()) === 6 && (await speedBtns.evaluateAll((els) => els.every((e) => { const r = e.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.width > 20; }))), "all six speeds are always visible on screen (changing speed never hides 1x)");
+  await p.getByRole("button", { name: "1.5x speed" }).click();
   ok((await audioState(p))?.rate === 1.5, "speed 1.5x actually changes playbackRate");
+  ok(await p.getByRole("button", { name: "1x speed" }).isVisible(), "after choosing 1.5x, 1x is still visible and can be chosen again");
   for (const s of ["0.5", "0.75", "1.25", "2", "1"]) {
-    await p.getByRole("button", { name: /Playback speed/ }).click();
-    await p.getByRole("option", { name: new RegExp(`^${s}x`) }).click();
+    await p.getByRole("button", { name: `${s}x speed` }).click();
     if ((await audioState(p))?.rate !== Number(s)) ok(false, `speed ${s}x`);
   }
   ok((await audioState(p))?.rate === 1, "all six speeds apply");
+  const sh = p.getByRole("dialog", { name: "Player" });
   // pause / play
-  await p.getByRole("button", { name: "Pause", exact: true }).first().click();
+  await sh.getByRole("button", { name: "Pause", exact: true }).first().click();
   ok((await audioState(p))?.paused === true, "pause works");
-  await p.getByRole("button", { name: "Play", exact: true }).first().click();
+  await sh.getByRole("button", { name: "Play", exact: true }).first().click();
   try { await p.waitForFunction(() => (window as any).__cur?.paused === false, null, { timeout: 15000 }); ok(true, "play resumes"); }
-  catch { ok(false, "play resumes", JSON.stringify(await audioState(p)) + " | " + (await p.getByRole("region", { name: "Audio player" }).first().innerText()).replace(/\n/g, " / ")); }
+  catch { ok(false, "play resumes", JSON.stringify(await audioState(p)) + " | " + (await sh.getByRole("region", { name: "Audio player" }).first().innerText()).replace(/\n/g, " / ")); }
   // seek
   const before = await audioState(p);
-  await p.getByRole("slider", { name: "Seek" }).fill("1");
+  await sh.getByRole("slider", { name: "Seek" }).fill("1");
   await p.waitForTimeout(400);
   ok(true, "seek slider accepts input");
   // next / prev
-  const passageNo = async () => Number((await p.getByRole("region", { name: "Audio player" }).first().innerText()).match(/passage (\d+) of/)?.[1] ?? 0);
+  const passageNo = async () => Number((await sh.getByRole("region", { name: "Audio player" }).first().innerText()).match(/passage (\d+) of/)?.[1] ?? 0);
   await p.waitForFunction(() => /passage \d+ of/.test(document.body.innerText), null, { timeout: 30000 });
   const n0 = await passageNo();
-  await p.getByRole("button", { name: "Next passage" }).first().click();
+  await sh.getByRole("button", { name: "Next passage" }).first().click();
   await p.waitForFunction((n) => document.body.innerText.includes(`passage ${n} of`), n0 + 1, { timeout: 30000 });
   ok(true, `Next moves from passage ${n0} to ${n0 + 1}`);
-  await p.getByRole("button", { name: "Previous passage" }).first().click();
+  await sh.getByRole("button", { name: "Previous passage" }).first().click();
   await p.waitForFunction((n) => document.body.innerText.includes(`passage ${n} of`), n0, { timeout: 30000 });
   ok(true, "Previous moves back");
   // volume + repeat
-  await p.getByRole("slider", { name: "Volume" }).last().fill("0.4");
+  await sh.getByRole("slider", { name: "Volume" }).last().fill("0.4");
   ok(Math.abs(((await audioState(p))?.vol ?? 1) - 0.4) < 0.01, "volume slider sets volume");
-  await p.getByRole("button", { name: /Repeat: off/ }).click();
-  ok(await p.getByRole("button", { name: /Repeat: all/ }).isVisible(), "repeat toggles");
+  await sh.getByRole("button", { name: /Repeat: off/ }).click();
+  ok(await sh.getByRole("button", { name: /Repeat: all/ }).isVisible(), "repeat toggles");
   // voices
   const src1 = (await audioState(p))!.src;
-  await p.getByRole("button", { name: /Change voice/ }).first().click();
+  await sh.getByRole("button", { name: /Change voice/ }).first().click();
   await p.getByRole("dialog", { name: "Choose a voice" }).waitFor();
-  const voiceCards = await p.getByRole("dialog").locator("li").count();
+  const voiceCards = await p.getByRole("dialog", { name: "Choose a voice" }).locator("li").count();
   ok(voiceCards >= 30, `voice picker lists ${voiceCards} voices`);
   await shot("07-voices");
-  ok(await p.getByRole("dialog").getByText("Nigerian English").first().isVisible() && await p.getByRole("dialog").getByText("British English").first().isVisible(), "voices show accent labels");
+  ok(await p.getByRole("dialog", { name: "Choose a voice" }).getByText("Nigerian English").first().isVisible() && await p.getByRole("dialog", { name: "Choose a voice" }).getByText("British English").first().isVisible(), "voices show accent labels");
   await p.getByRole("button", { name: "Preview voice Ryan" }).click();
   await p.waitForFunction(() => (window as any).__audios.some((a: HTMLAudioElement, i: number) => i > 0 && !a.paused && a.src.startsWith("blob:")), null, { timeout: 30000 });
   ok(true, "voice preview plays");
-  await p.getByRole("dialog").getByRole("button", { name: "Use voice" }).nth(3).click();
+  await p.getByRole("dialog", { name: "Choose a voice" }).getByRole("button", { name: "Use voice" }).nth(3).click();
   await p.waitForFunction((s) => { const a = (window as any).__cur; return a && a.src !== s && !a.paused && a.src.startsWith("blob:"); }, src1, { timeout: 40000 });
   const src2 = (await audioState(p))!.src;
   ok(src2 !== src1, "selecting another voice regenerates the audio (different source)");
   await p.keyboard.press("Escape");
+  await p.keyboard.press("Escape"); // close the player sheet too
+
+  // ---- playback survives navigation (the player lives above the pages) ----
+  await p.getByRole("button", { name: "Play", exact: true }).first().click().catch(() => {});
+  await p.waitForFunction(() => (window as any).__cur?.paused === false, null, { timeout: 20000 });
+  const tBefore = (await audioState(p))!.t;
+  await p.getByRole("link", { name: "Books", exact: true }).last().click();
+  await p.getByRole("heading", { name: "FREE BOOKS" }).waitFor();
+  const t1 = (await audioState(p))!;
+  await p.waitForTimeout(1500);
+  const st = await audioState(p);
+  ok(st?.paused === false && (st.t > t1.t || st.src !== t1.src), "audio keeps playing after moving to Books", { tBefore, t1, st });
+  ok(await p.getByRole("button", { name: "Stop and close player" }).isVisible(), "a mini player follows the listener to other pages");
+  await p.getByRole("link", { name: "Profile", exact: true }).last().click();
+  await p.getByRole("heading", { name: "Profile" }).first().waitFor();
+  ok((await audioState(p))?.paused === false, "still playing on Profile");
+  await shot("07b-miniplayer-elsewhere");
+  await p.getByRole("button", { name: "Pause", exact: true }).first().click();
+  ok((await audioState(p))?.paused === true, "pausing from the mini player works anywhere");
+  await p.getByRole("link", { name: "Home", exact: true }).last().click();
+  await p.getByRole("tab", { name: "UPLOAD" }).waitFor();
 
   // ------------------------------------------------------------ uploads
   section("Read Aloud — upload (TXT / DOCX / PDF)");
@@ -194,7 +219,7 @@ async function main() {
   for (const [file, expect] of [[txt, "keeper climbed the stairs"], [dx, "memo comes from a Word document"], [pdf, "PDF paragraph one lives here"]] as const) {
     await input.setInputFiles(file);
     await p.getByText(expect).first().waitFor({ timeout: 30000 });
-    await p.waitForFunction(() => document.body.innerText.includes("Audio ready") || document.body.innerText.includes("Now reading"), null, { timeout: 40000 });
+    await p.waitForFunction(() => /(Paused|Reading) · [\d.]+x/.test(document.body.innerText), null, { timeout: 40000 });
     ok(true, `${path.extname(file).toUpperCase()} → text extracted, audio prepared`);
     await p.getByRole("button", { name: "Play", exact: true }).first().click();
     await p.waitForFunction(() => { const a = (window as any).__cur; return a && !a.paused && !a.src.startsWith("data:"); }, null, { timeout: 30000 });
@@ -278,6 +303,15 @@ async function main() {
   await p.getByRole("button", { name: /New ticket/ }).first().click();
   await p.locator("#t-subject").fill("Voice question");
   await p.locator("#t-message").fill("Can I get more Nigerian voices?");
+  // --- on-screen keyboard: simulate it by shrinking the viewport (what Android does) and check the field being typed in stays visible
+  const fullVp = p.viewportSize()!;
+  await p.locator("#t-message").focus();
+  await p.setViewportSize({ width: fullVp.width, height: Math.round(fullVp.height * 0.52) });
+  await p.waitForTimeout(900);
+  const kb = await p.evaluate(() => { const r = document.querySelector("#t-message")!.getBoundingClientRect(); const nav = document.querySelector("nav[data-hide-on-kb]") as HTMLElement | null; return { open: document.documentElement.dataset.kb, top: r.top, bottom: r.bottom, vh: window.innerHeight, navHidden: !nav || getComputedStyle(nav).display === "none" }; });
+  ok(kb.open === "open" && kb.top >= 0 && kb.bottom <= kb.vh + 1 && kb.navHidden, "with the keyboard up, the field being typed in is fully visible and the bottom bar steps aside", kb);
+  await p.setViewportSize(fullVp);
+  await p.waitForTimeout(400);
   await p.getByRole("button", { name: "Submit ticket" }).click();
   await p.waitForURL(/\/support\/.+/);
   await p.getByText("Can I get more Nigerian voices?").first().waitFor();
@@ -293,6 +327,16 @@ async function main() {
   await p.getByRole("button", { name: "Send reply" }).click();
   await p.getByText("Great, thank you!").first().waitFor();
   ok(true, "user can reply");
+  // photo in the chat
+  const shotPng = await sharp({ create: { width: 480, height: 320, channels: 3, background: "#e9c46a" } }).png().toBuffer();
+  await p.locator('input[type=file][aria-label="Attach photos"]').setInputFiles({ name: "problem.png", mimeType: "image/png", buffer: shotPng });
+  await p.getByRole("button", { name: "Remove problem.png" }).waitFor();
+  await p.getByRole("button", { name: "Send reply" }).click();
+  await p.locator('img[alt="problem.jpg"]').first().waitFor({ timeout: 20000 });
+  ok(await p.locator('img[alt="problem.jpg"]').first().evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 100), "a photo sent in the support chat appears in the conversation");
+  await p.locator('img[alt="problem.jpg"]').first().click();
+  ok(await p.getByRole("dialog", { name: "Photo" }).isVisible(), "tapping a photo opens it full screen");
+  await p.keyboard.press("Escape");
   await p.waitForTimeout(1000); // let the reply request settle before closing the ticket behind it
   await db.ticket.update({ where: { id: tk!.id }, data: { status: "CLOSED" } });
   await p.reload();

@@ -361,6 +361,21 @@ async function main() {
   ok((await A.del(`/api/books/${bookId}`)).status === 409, "published book can't be deleted");
   ok(((await A.get("/api/books")).data.books as any[]).every((b) => b.coverUrl === null || b.coverUrl.startsWith("/api/covers/")), "list payload sane");
 
+  section("Support chat photos");
+  const spng = await sharp({ create: { width: 500, height: 400, channels: 3, background: "#264653" } }).png().toBuffer();
+  const sform = (fields: Record<string, string>, files: Array<{ name: string; type: string; data: Buffer }>) => { const f = new FormData(); for (const [k, v] of Object.entries(fields)) f.append(k, v); for (const x of files) f.append("files", new Blob([new Uint8Array(x.data)], { type: x.type }), x.name); return f; };
+  const st = await A.req("POST", "/api/tickets", sform({ subject: "Cover question", message: "Here is the cover I mean." }, [{ name: "cover.png", type: "image/png", data: spng }]));
+  ok(st.status === 200, "publisher opens a ticket with a photo", st.data);
+  const std = (await A.get(`/api/tickets/${st.data.ticket.id}`)).data.ticket;
+  ok(std.messages[0].attachments.length === 1, "the message lists its photo");
+  const sget = await A.get(std.messages[0].attachments[0].url);
+  ok(sget.status === 200 && sget.res.headers.get("content-type") === "image/jpeg", "the photo is served back as JPEG");
+  ok((await I.get(std.messages[0].attachments[0].url)).status === 404, "another publisher can't open it");
+  ok((await new Client().get(std.messages[0].attachments[0].url)).status === 401, "photos need sign-in");
+  ok((await A.req("POST", `/api/tickets/${st.data.ticket.id}/reply`, sform({ message: "" }, [{ name: "b.png", type: "image/png", data: spng }]))).status === 200, "a reply can be photo-only");
+  ok((await A.req("POST", `/api/tickets/${st.data.ticket.id}/reply`, sform({ message: "x" }, [{ name: "evil.png", type: "image/png", data: Buffer.from("not an image at all") }]))).status === 415, "a fake image is refused (checked by its bytes)");
+  ok((await A.req("POST", `/api/tickets/${st.data.ticket.id}/reply`, sform({ message: "x" }, Array.from({ length: 5 }, (_, i) => ({ name: `p${i}.png`, type: "image/png", data: spng })))) ).status === 400, "more than four photos is refused");
+
   const pn = (await A.get("/api/notifications")).data.notifications.length;
   const pi = (await I.get("/api/notifications")).data.notifications.length;
   ok((await new Client().req("DELETE", "/api/notifications")).status === 401, "clearing notifications requires login");
