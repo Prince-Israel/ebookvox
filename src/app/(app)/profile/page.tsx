@@ -1,13 +1,15 @@
 "use client";
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { Bell, Camera, ChevronRight, LifeBuoy, LogOut, Receipt, Settings, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowUpRight, Bell, Camera, ChevronRight, LifeBuoy, LogOut, PenLine, Receipt, Settings, ShieldCheck, Trash2 } from "lucide-react";
 import { AccountForm } from "@/components/AccountForm";
 import { Avatar } from "@/components/Avatar";
 import { Badge, Button, Card, PageTitle, useToast } from "@/components/ui";
 import { useUser } from "@/components/UserContext";
 import { api, ApiFailure } from "@/lib/client";
 import { countryName } from "@/lib/countries";
+import { usePublicConfig } from "@/lib/public-config";
+import { AppVersion } from "@/components/AppVersion";
 
 // Shrinks big phone photos before upload (faster, and handles any size camera image).
 async function resizeImage(file: File, max = 640): Promise<Blob> {
@@ -30,6 +32,7 @@ export default function ProfilePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState(false);
+  const cfg = usePublicConfig();
 
   async function upload(file?: File) {
     if (!file) return;
@@ -95,12 +98,14 @@ export default function ProfilePage() {
             {link("/support", "Support", LifeBuoy)}
             {link("/notifications", "Notifications", Bell)}
             {link("/settings", "Settings", Settings)}
+            <a href={cfg?.publisherSignUpUrl ?? "#"} target="_blank" rel="noopener noreferrer" className="flex h-14 items-center gap-4 rounded-2xl px-3 font-medium hover:bg-surface2"><PenLine className="size-5 text-accent" /><span className="min-w-0 flex-1">Publish your books <span className="block text-xs font-normal text-muted">Sell or share them free — for authors and publishers</span></span><ArrowUpRight className="size-5 text-muted" /></a>
             {user.role === "ADMIN" && link("/admin", "Admin console", ShieldCheck)}
             <button onClick={signOut} disabled={out} className="flex h-14 w-full items-center gap-4 rounded-2xl px-3 font-medium text-danger hover:bg-danger-soft"><LogOut className="size-5" /><span className="flex-1 text-left">{out ? "Signing out…" : "Sign out"}</span></button>
           </Card>
         </div>
         <Card><h2 className="mb-5 text-2xl font-semibold">Personal details</h2><AccountForm /></Card>
       </div>
+      <AppVersion />
     </div>
   );
 }

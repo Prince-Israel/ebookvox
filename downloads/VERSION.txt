@@ -1,0 +1,7 @@
+Ebookvox Reader mobile apps
+Version:  1.2.0 (build 3)
+Built:    2026-10-16 20:06 UTC
+Server:   http://192.168.3.238:3230 (the Reader must be running there)
+
+The same version/build is shown at the bottom of the app's Profile page ("app 1.2.0 (build 3)").
+If you installed an older APK, uninstall it first, or install this one over it (it has a higher version number, so Android treats it as an update).

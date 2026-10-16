@@ -4,6 +4,8 @@ import { BookOpen, Search } from "lucide-react";
 import { Async, Button, EmptyState, PageTitle, Skeleton, cx } from "@/components/ui";
 import { BookCard, type BookItem } from "@/components/BookCard";
 import { api, useApi } from "@/lib/client";
+import { AdSlot } from "@/components/AdSlot";
+import { PublisherPromo } from "@/components/PublisherPromo";
 
 const grid = "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4";
 const skeleton = <div className={grid}>{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-80" />)}</div>;
@@ -69,9 +71,11 @@ export default function BooksPage() {
         {() => (<>
           {view !== "paid" && section("free-books", "FREE BOOKS", free, "No free books match")}
           {view !== "free" && section("paid-books", "PAID BOOKS", paid, "No paid books match")}
+          <AdSlot name="books" className="mb-10" />
           {all.length < total && <div className="mb-10 flex flex-col items-center gap-2"><p className="text-sm text-muted">Showing {all.length} of {total.toLocaleString()} books</p><Button variant="secondary" loading={loadingMore} onClick={showMore}>Show more books</Button></div>}
         </>)}
       </Async>
+      <PublisherPromo compact className="mb-6" />
     </div>
   );
 }

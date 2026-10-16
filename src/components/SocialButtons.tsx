@@ -1,4 +1,5 @@
 "use client";
+import { isNativeApp } from "@/lib/public-config";
 
 const Google = () => (
   <svg viewBox="0 0 48 48" className="size-7" aria-hidden>
@@ -14,12 +15,23 @@ const Apple = () => (
   </svg>
 );
 
-export function SocialButtons({ verb = "Continue" }: { verb?: string }) {
+export function SocialButtons({ verb = "Continue", next }: { verb?: string; next?: string | null }) {
+  const q = (mobile: boolean) => { const p = new URLSearchParams(); if (mobile) p.set("mobile", "1"); if (next && next.startsWith("/") && !next.startsWith("//")) p.set("next", next); const s = p.toString(); return s ? `?${s}` : ""; };
+  // In the iOS/Android app, Google and Apple refuse to sign in inside an embedded web view, so open the phone's own browser instead
+  // (it returns to the app through ebookvox://oauth — see NativeBridge).
+  async function open(e: React.MouseEvent, provider: "google" | "apple") {
+    if (!isNativeApp()) return; // on the web the plain link does the job
+    e.preventDefault();
+    try {
+      const { Browser } = await import("@capacitor/browser");
+      await Browser.open({ url: `${window.location.origin}/api/auth/oauth/${provider}/start${q(true)}` });
+    } catch { window.location.href = `/api/auth/oauth/${provider}/start${q(false)}`; }
+  }
   const cls = "flex h-14 w-full items-center justify-center gap-3 rounded-full border border-line bg-surface px-5 text-base font-semibold text-fg shadow-card transition hover:bg-surface2 active:scale-[0.98]";
   return (
     <div className="space-y-3">
-      <a href="/api/auth/oauth/google/start" className={cls}><Google /> {verb} with Google</a>
-      <a href="/api/auth/oauth/apple/start" className={cls}><Apple /> {verb} with Apple</a>
+      <a href={`/api/auth/oauth/google/start${q(false)}`} onClick={(e) => open(e, "google")} className={cls}><Google /> {verb} with Google</a>
+      <a href={`/api/auth/oauth/apple/start${q(false)}`} onClick={(e) => open(e, "apple")} className={cls}><Apple /> {verb} with Apple</a>
       <div className="flex items-center gap-3 py-2 text-xs uppercase tracking-widest text-muted"><span className="h-px flex-1 bg-line" />or with email<span className="h-px flex-1 bg-line" /></div>
     </div>
   );

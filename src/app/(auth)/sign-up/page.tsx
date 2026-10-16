@@ -55,7 +55,7 @@ function Form() {
     <div className="anim-up">
       <h1 className="text-4xl font-semibold">Create your account</h1>
       <p className="mb-6 mt-2 text-muted">Join Ebookvox to read, listen and build your library.</p>
-      <SocialButtons verb="Sign up" />
+      <SocialButtons verb="Sign up" next={next} />
       <form onSubmit={submit} className="space-y-4" noValidate>
         {error && Object.keys(fields).length === 0 && <Banner tone="danger">{error}</Banner>}
         <div className="grid gap-4 sm:grid-cols-2">

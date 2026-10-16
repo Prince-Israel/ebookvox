@@ -39,7 +39,7 @@ function Form() {
       {sp.get("expired") && <div className="mb-4"><Banner tone="warn">Your session expired. Please sign in again.</Banner></div>}
       {sp.get("reset") && <div className="mb-4"><Banner tone="success">Password updated. You can sign in now.</Banner></div>}
       {oauthErr && <div className="mb-4"><Banner tone="danger">{oauthErr}</Banner></div>}
-      <SocialButtons />
+      <SocialButtons next={sp.get("next")} />
       <form onSubmit={submit} className="space-y-4" noValidate>
         {error && !fields.email && !fields.password && <Banner tone="danger">{error}</Banner>}
         <Input label="Email" name="email" id="signin-email" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" value={email} onChange={(e) => setEmail(e.target.value)} error={fields.email} required />

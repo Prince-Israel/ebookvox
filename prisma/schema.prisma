@@ -82,7 +82,7 @@ model Session {
 model AuthToken {
   id        String    @id @default(cuid())
   userId    String
-  type      String // VERIFY_EMAIL | RESET_PASSWORD
+  type      String // VERIFY_EMAIL | RESET_PASSWORD | MOBILE_LOGIN
   tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
@@ -95,6 +95,8 @@ model OAuthState {
   provider     String
   nonce        String
   codeVerifier String
+  mobile       Boolean  @default(false) // started from the iOS/Android app (finishes with a deep link, not a cookie)
+  next         String? // where to land afterwards
   expiresAt    DateTime
 }
 

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { SignJWT, createRemoteJWKSet, importPKCS8, jwtVerify } from "jose";
 import { db } from "./db";
-import { createSession, randomToken } from "./auth";
+import { createSession, randomToken, sha256 } from "./auth";
 import { currencyForCountry, isCountry } from "./countries";
 import { welcome } from "./account";
 
@@ -18,12 +18,15 @@ export function isConfigured(p: Provider) {
     : !!(e.APPLE_CLIENT_ID && e.APPLE_TEAM_ID && e.APPLE_KEY_ID && e.APPLE_PRIVATE_KEY);
 }
 
-export async function buildAuthUrl(p: Provider) {
+/** Only same-site paths are allowed as a post-login destination (never an open redirect). */
+export const safeNext = (n?: string | null) => (n && /^\/(?!\/)[\w\-./?=&%]*$/.test(n) ? n : null);
+
+export async function buildAuthUrl(p: Provider, opts: { mobile?: boolean; next?: string | null } = {}) {
   const state = randomToken(24);
   const nonce = randomToken(16);
   const codeVerifier = randomToken(32);
   await db.oAuthState.deleteMany({ where: { expiresAt: { lt: new Date() } } });
-  await db.oAuthState.create({ data: { state, provider: p, nonce, codeVerifier, expiresAt: new Date(Date.now() + 10 * 60_000) } });
+  await db.oAuthState.create({ data: { state, provider: p, nonce, codeVerifier, mobile: !!opts.mobile, next: safeNext(opts.next), expiresAt: new Date(Date.now() + 10 * 60_000) } });
   const u = new URL(p === "google" ? "https://accounts.google.com/o/oauth2/v2/auth" : "https://appleid.apple.com/auth/authorize");
   const q = u.searchParams;
   q.set("response_type", "code");
@@ -137,5 +140,25 @@ export async function completeOAuth(p: Provider, params: { state: string; code: 
   }
   const u2 = await db.user.findUnique({ where: { id: userId }, select: { status: true } });
   if (u2?.status !== "ACTIVE") throw new Error("account not active");
+  if (st.mobile) {
+    // The sign-in happened in the phone's system browser, which has its own cookies. Hand the app a one-time code
+    // (valid 3 minutes, single use) that it swaps for a session inside its own web view.
+    const code = randomToken(32);
+    await db.authToken.create({ data: { userId, type: "MOBILE_LOGIN", tokenHash: sha256(code), expiresAt: new Date(Date.now() + 3 * 60_000) } });
+    return { mobile: true as const, code, next: st.next };
+  }
   await createSession(userId, params.userAgent);
+  return { mobile: false as const, code: null, next: st.next };
+}
+
+/** Swaps the one-time code from the app's deep link for a real session cookie. */
+export async function redeemMobileCode(code: string, userAgent?: string | null) {
+  const t = await db.authToken.findUnique({ where: { tokenHash: sha256(code) } });
+  if (!t || t.type !== "MOBILE_LOGIN" || t.usedAt || t.expiresAt < new Date()) return false;
+  const claimed = await db.authToken.updateMany({ where: { id: t.id, usedAt: null }, data: { usedAt: new Date() } });
+  if (claimed.count === 0) return false;
+  const u = await db.user.findUnique({ where: { id: t.userId }, select: { status: true } });
+  if (u?.status !== "ACTIVE") return false;
+  await createSession(t.userId, userAgent);
+  return true;
 }

@@ -4,6 +4,8 @@ import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import sharp from "sharp";
 import { voiceForCountry } from "../src/lib/voices";
+import { buildAuthUrl, safeNext } from "../src/lib/oauth";
+import { sha256 } from "../src/lib/auth";
 
 const BASE = process.env.BASE ?? "http://localhost:3100";
 const MOCK = "http://localhost:4010";
@@ -422,6 +424,31 @@ async function main() {
   const nAfter = (await u.get("/api/notifications")).data;
   ok(nBefore > 0 && cleared.status === 200 && nAfter.notifications.length === 0 && nAfter.unread === 0, "Clear all removes every notification for the user", { nBefore, nAfter });
   ok((await gb.get("/api/notifications")).data.notifications.length === gbN, "clearing one user's notifications leaves other users' untouched");
+
+  // ---------------------------------------------------------------- public links, store badges, mobile sign-in
+  section("Public config, ads.txt, mobile Google/Apple sign-in");
+  const cfg = (await new Client().get("/api/public-config")).data;
+  ok(/\/sign-up$/.test(cfg.publisherSignUpUrl) && cfg.publisherSignUpUrl.startsWith(cfg.publisherUrl) && typeof cfg.apkUrl === "string" && cfg.playStoreUrl === null && cfg.appStoreUrl === null && cfg.adsense === null, "public config gives the Publisher sign-up link and store links, and no ads until AdSense is configured", cfg);
+  ok(!JSON.stringify(cfg).match(/secret|password|key/i), "public config contains no secrets");
+  ok((await fetch(BASE + "/ads.txt")).status === 404, "ads.txt is absent until ADSENSE_CLIENT is set");
+  ok(safeNext("/library?x=1") === "/library?x=1" && safeNext("//evil.example") === null && safeNext("https://evil.example") === null && safeNext("/\\evil") === null && safeNext(null) === null, "post-login destinations must be same-site paths");
+  process.env.GOOGLE_CLIENT_ID = "test-client"; process.env.GOOGLE_CLIENT_SECRET = "test-secret";
+  const url = new URL(await buildAuthUrl("google", { mobile: true, next: "/books" }));
+  const stRow = await db.oAuthState.findUnique({ where: { state: url.searchParams.get("state")! } });
+  ok(url.hostname === "accounts.google.com" && stRow?.mobile === true && stRow.next === "/books", "a sign-in started from the app is remembered as a mobile sign-in");
+  const evil = new URL(await buildAuthUrl("google", { mobile: true, next: "//evil.example" }));
+  ok((await db.oAuthState.findUnique({ where: { state: evil.searchParams.get("state")! } }))?.next === null, "an unsafe next address is dropped");
+  delete process.env.GOOGLE_CLIENT_ID; delete process.env.GOOGLE_CLIENT_SECRET;
+  const mu = await db.user.findFirst({ where: { email: `gb.${stamp}@example.com` } });
+  const mkCode = async (type: string, ageMs = 0, userId = mu!.id) => { const code = `code-${type}-${Math.random().toString(36).slice(2)}-padding-padding`; await db.authToken.create({ data: { userId, type, tokenHash: sha256(code), expiresAt: new Date(Date.now() + 180_000 - ageMs) } }); return code; };
+  const app1 = new Client();
+  const good = await mkCode("MOBILE_LOGIN");
+  const ex1 = await app1.post("/api/auth/oauth/mobile/exchange", { code: good });
+  ok(ex1.status === 200 && (await app1.get("/api/me")).data.user.email === `gb.${stamp}@example.com`, "the one-time code from the app's deep link becomes a signed-in session");
+  ok((await new Client().post("/api/auth/oauth/mobile/exchange", { code: good })).status === 400, "a code can only be used once");
+  ok((await new Client().post("/api/auth/oauth/mobile/exchange", { code: await mkCode("MOBILE_LOGIN", 200_000) })).status === 400, "an expired code is refused");
+  ok((await new Client().post("/api/auth/oauth/mobile/exchange", { code: await mkCode("VERIFY_EMAIL") })).status === 400, "other kinds of token can't be used to sign in");
+  ok((await new Client().post("/api/auth/oauth/mobile/exchange", { code: "x".repeat(40) })).status === 400, "a made-up code is refused");
 
   // ---------------------------------------------------------------- security
   section("Security");

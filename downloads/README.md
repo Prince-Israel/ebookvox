@@ -6,6 +6,11 @@
 | `Ebookvox-Reader-ios-unsigned.ipa` | iPhone/iPad | **Unsigned.** Apple only runs signed apps, so install it with a sideloading tool that signs it with your Apple ID (AltStore, Sideloadly) — or open `ios/App` in Xcode and run it with your own team. |
 | `Ebookvox-Reader-ios-simulator.zip` | Xcode iOS Simulator | Unzip and drag `App.app` onto a running simulator. Loads `http://localhost:3230`. |
 
+## Which version do I have?
+
+`VERSION.txt` lists the current build (**1.2.0, build 3**). The installed app shows the same at the bottom of **Profile**. Each new APK has a higher build number, so
+installing it over an older one updates it (if Android refuses with "App not installed", uninstall the old Ebookvox first).
+
 ## Where the app gets its content
 
 The mobile app is a native shell around the Reader web app, so it needs the Reader server to be reachable.

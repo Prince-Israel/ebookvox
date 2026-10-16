@@ -88,6 +88,7 @@ async function main() {
   section("Sign up form");
   await p.goto(BASE + "/sign-up");
   await shot("04-signup");
+  ok((await p.getByRole("link", { name: /Download the Ebookvox Android app/ }).count()) === 0, "inside the mobile app there are no store badges (you already have the app)");
   const google = p.getByRole("link", { name: /with Google/ }), apple = p.getByRole("link", { name: /with Apple/ });
   const gb = await google.boundingBox(), ab = await apple.boundingBox();
   ok(gb && ab && gb.height >= 52 && ab.height >= 52 && gb.width > 250, `Google/Apple buttons large (${gb?.height}px high)`);
@@ -111,6 +112,11 @@ async function main() {
   const dbu = await db.user.findUnique({ where: { email } });
   ok(dbu?.phone === "+2348012345678" && dbu.currency === "NGN", "phone saved as +2348012345678, currency NGN");
   await shot("05-home");
+  const promo = p.getByRole("link", { name: /Publish your books/ }).first();
+  ok(/\/sign-up$/.test((await promo.getAttribute("href")) ?? "") && (await promo.getAttribute("target")) === "_blank", "Home invites authors & publishers to publish — the button opens the Publisher site's registration page");
+  ok(await p.getByRole("heading", { name: "Are you an author or publisher?" }).isVisible(), "the author/publisher banner is shown on Home");
+  ok((await p.getByRole("heading", { name: "Take Ebookvox with you" }).count()) === 0, "the Get-the-app section is hidden inside the app");
+  ok((await p.locator("ins.adsbygoogle").count()) === 0, "no ad slots render until AdSense is configured");
   await overflow(p, "home");
 
   // ------------------------------------------------------------ read aloud: text
@@ -327,10 +333,12 @@ async function main() {
   await p.getByRole("button", { name: "Send reply" }).click();
   await p.getByText("Great, thank you!").first().waitFor();
   ok(true, "user can reply");
+  await p.waitForLoadState("networkidle");
   // photo in the chat
   const shotPng = await sharp({ create: { width: 480, height: 320, channels: 3, background: "#e9c46a" } }).png().toBuffer();
   await p.locator('input[type=file][aria-label="Attach photos"]').setInputFiles({ name: "problem.png", mimeType: "image/png", buffer: shotPng });
   await p.getByRole("button", { name: "Remove problem.png" }).waitFor();
+  await p.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => /Send reply/.test(b.textContent ?? "") && !b.disabled), null, { timeout: 15000 });
   await p.getByRole("button", { name: "Send reply" }).click();
   await p.locator('img[alt="problem.jpg"]').first().waitFor({ timeout: 20000 });
   ok(await p.locator('img[alt="problem.jpg"]').first().evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 100), "a photo sent in the support chat appears in the conversation");
@@ -357,6 +365,8 @@ async function main() {
   await shot("17-notifications");
 
   await p.goto(BASE + "/profile");
+  ok(await p.getByRole("link", { name: /Publish your books/ }).first().isVisible(), "Profile also links to publishing");
+  ok(/site build \d{4}-\d{2}-\d{2}/.test(await p.locator("body").innerText()), "Profile shows which build you are running");
   const photo = path.join(TMP, "me.png"); writeFileSync(photo, await sharp({ create: { width: 800, height: 600, channels: 3, background: "#d98e62" } }).png().toBuffer());
   await p.locator("#avatar-file").setInputFiles(photo);
   await p.getByRole("img", { name: /profile photo/ }).first().waitFor({ timeout: 15000 });
@@ -419,6 +429,27 @@ async function main() {
   ok(true, "sign in through the UI returns to the page that was requested");
 
   // ------------------------------------------------------------ responsive sweep
+  section("Website only: store badges, publisher invitation, Google/Apple buttons");
+  {
+    const wc = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const w = await wc.newPage();
+    await w.goto(BASE + "/home");
+    const heading = w.getByRole("heading", { name: "Take Ebookvox with you" });
+    await heading.scrollIntoViewIfNeeded();
+    const apk = w.getByRole("link", { name: /Download the Ebookvox Android app/ }).first();
+    ok(await heading.isVisible() && await apk.isVisible() && /Ebookvox-Reader-android\.apk$/.test((await apk.getAttribute("href")) ?? ""), "the website offers the Android app (APK until the Play Store listing is set)");
+    ok(await w.getByRole("img", { name: /App Store — coming soon/ }).first().isVisible(), "the App Store badge says “coming soon” until a listing exists");
+    ok((await w.getByRole("link", { name: /Publish your books/ }).first().getAttribute("href"))?.endsWith("/sign-up") === true, "guests also see the author/publisher invitation");
+    await w.goto(BASE + "/sign-in");
+    await w.getByRole("link", { name: /Download the Ebookvox Android app/ }).first().waitFor({ timeout: 15000 }).catch(() => {});
+    ok(await w.getByRole("link", { name: /Download the Ebookvox Android app/ }).first().isVisible(), "the sign-in page shows the app badges");
+    ok(((await w.getByRole("link", { name: /with Google/ }).getAttribute("href")) ?? "").startsWith("/api/auth/oauth/google/start"), "Continue with Google is a plain link on the website");
+    await w.goto(BASE + "/sign-in?next=%2Flibrary");
+    ok((await w.getByRole("link", { name: /with Apple/ }).getAttribute("href")) === "/api/auth/oauth/apple/start?next=%2Flibrary", "the destination survives the Apple sign-in round trip");
+    await w.screenshot({ path: path.join(SHOTS, "web-badges.png") }).catch(() => {});
+    await wc.close();
+  }
+
   section("Responsive sweep (iPhone, Android, tablet, desktop)");
   const profiles: Array<[string, any]> = [["Pixel 7", devices["Pixel 7"]], ["iPad (gen 7)", devices["iPad (gen 7)"]], ["Desktop 1280", { viewport: { width: 1280, height: 800 } }], ["Small phone 320", { viewport: { width: 320, height: 640 }, isMobile: true, hasTouch: true }]];
   const cookies = await phone.cookies();

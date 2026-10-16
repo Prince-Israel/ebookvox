@@ -10,6 +10,9 @@ import { usePlayback, type Doc } from "@/components/audio/PlaybackProvider";
 import { useAuth } from "@/components/UserContext";
 import { AuthPrompt } from "@/components/AuthPrompt";
 import { BookCarousel } from "@/components/BookCarousel";
+import { PublisherPromo } from "@/components/PublisherPromo";
+import { GetTheApp } from "@/components/GetTheApp";
+import { AdSlot } from "@/components/AdSlot";
 import { api, ApiFailure, useApi } from "@/lib/client";
 import { wordCount } from "@/lib/text";
 import { formatMoney } from "@/lib/money";
@@ -172,6 +175,9 @@ export default function HomePage() {
 
       <BookCarousel />
 
+      <AdSlot name="home" />
+      <PublisherPromo />
+
       {doc && (
         <section id="reader" aria-label="Reading view" className="anim-up scroll-mt-20">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -227,6 +233,7 @@ export default function HomePage() {
           )}
         </Async>
       </section>)}
+      <GetTheApp />
       <AuthPrompt open={!!prompt} onClose={() => setPrompt(null)} next="/home" reason={prompt ?? ""} />
     </div>
   );

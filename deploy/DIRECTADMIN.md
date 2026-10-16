@@ -16,6 +16,18 @@ Whichever path: also read `docs/CONFIGURATION.md` (keys) and set the production 
 
 ---
 
+## Getting the files onto the server
+
+Either `git clone` on the server (needs SSH — see below) or upload zips from your Mac:
+
+```bash
+bash scripts/package-for-upload.sh      # creates upload/ebookvox-reader.zip, ebookvox-publisher.zip, ebookvox-admin.zip (source only, a few hundred KB each)
+```
+
+In DirectAdmin → **System Info & Files → File Manager** (or SFTP), create three folders in your home directory — `reader`, `publisher`, `admin` — upload each zip into its folder
+and use **Extract**. Then continue with Path A (step 4 onwards) or Path B. Each app runs from its own folder and has its own `.env`.
+The zips never contain `.env` files, databases or `node_modules`; you create those on the server.
+
 ## Path A — shared DirectAdmin with Node.js Selector
 
 **Be realistic about limits.** Each app needs roughly 300–600 MB of RAM when running, and `next build` needs about 1 GB while building.
