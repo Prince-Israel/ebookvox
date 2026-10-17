@@ -1,7 +1,10 @@
 Ebookvox Reader mobile apps
-Version:  1.2.0 (build 3)
-Built:    2026-10-16 20:06 UTC
-Server:   http://192.168.3.238:3230 (the Reader must be running there)
+Android: version 1.2.1 (build 4)   <- Ebookvox-Reader-android.apk
+iPhone:  version 1.2.0 (build 3)   <- Ebookvox-Reader-ios-unsigned.ipa / -simulator.zip
+Built:   2026-10-17 12:35 UTC
+Server:  http://192.168.3.238:3230 (the Reader must be running there)
+APK SHA-256: debc4b4f86a6fb76525f456b7aa9a2d6ed3d1b6ac7d5ce3427230469c2be2624
 
-The same version/build is shown at the bottom of the app's Profile page ("app 1.2.0 (build 3)").
-If you installed an older APK, uninstall it first, or install this one over it (it has a higher version number, so Android treats it as an update).
+The same version/build is shown at the bottom of the app's Profile page ("app 1.2.1 (build 4)").
+Each build has a higher number than the last, so installing it over an older Ebookvox updates it.
+If Android says "App not installed", uninstall the old Ebookvox first.
