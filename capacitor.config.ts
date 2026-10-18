@@ -11,6 +11,6 @@ const config: CapacitorConfig = {
   server: { url, cleartext: url.startsWith("http://"), allowNavigation: ["checkout.paystack.com", "*.paystack.com", "accounts.google.com", "appleid.apple.com"] },
   ios: { contentInset: "never", backgroundColor: "#fbf5ec" },
   android: { backgroundColor: "#fbf5ec", allowMixedContent: false },
-  plugins: { SplashScreen: { backgroundColor: "#3a261c", launchShowDuration: 1500 } },
+  plugins: { Keyboard: { resize: "native", resizeOnFullScreen: true }, SplashScreen: { backgroundColor: "#3a261c", launchShowDuration: 1500 } },
 };
 export default config;

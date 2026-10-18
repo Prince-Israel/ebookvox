@@ -88,7 +88,7 @@ async function main() {
   section("Sign up form");
   await p.goto(BASE + "/sign-up");
   await shot("04-signup");
-  ok((await p.getByRole("link", { name: /Download the Ebookvox Android app/ }).count()) === 0, "inside the mobile app there are no store badges (you already have the app)");
+  ok((await p.getByRole("link", { name: /Download the Ebookvox Android app/ }).count()) === 0 && (await p.getByText("Get the app", { exact: false }).count()) === 0, "inside the mobile app the sign-up screen has no “Get the app” section at all (you already have the app)");
   const google = p.getByRole("link", { name: /with Google/ }), apple = p.getByRole("link", { name: /with Apple/ });
   const gb = await google.boundingBox(), ab = await apple.boundingBox();
   ok(gb && ab && gb.height >= 52 && ab.height >= 52 && gb.width > 250, `Google/Apple buttons large (${gb?.height}px high)`);
@@ -366,6 +366,7 @@ async function main() {
 
   await p.goto(BASE + "/profile");
   ok(await p.getByRole("link", { name: /Publish your books/ }).first().isVisible(), "Profile also links to publishing");
+  await p.waitForFunction(() => /site build \d{4}-\d{2}-\d{2}/.test(document.body.innerText), null, { timeout: 15000 }).catch(() => {});
   ok(/site build \d{4}-\d{2}-\d{2}/.test(await p.locator("body").innerText()), "Profile shows which build you are running");
   const photo = path.join(TMP, "me.png"); writeFileSync(photo, await sharp({ create: { width: 800, height: 600, channels: 3, background: "#d98e62" } }).png().toBuffer());
   await p.locator("#avatar-file").setInputFiles(photo);

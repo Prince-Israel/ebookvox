@@ -35,3 +35,4 @@ android/app/src/main/assets/capacitor.plugins.json
 data/cover-cache/
 .DS_Store
 upload/
+.next-dev/

@@ -36,14 +36,17 @@ function Badge({ href, logo, small, big, label }: { href: string | null; logo: R
 }
 
 /** "Get the app" Google Play + App Store badges. Hidden inside the mobile apps themselves. */
-export function StoreBadges({ className }: { className?: string }) {
+export function StoreBadges({ className, heading, headingClassName }: { className?: string; heading?: string; headingClassName?: string }) {
   const c = usePublicConfig();
   const native = useIsNative();
   if (native) return null;
   return (
-    <div className={cx("flex flex-wrap gap-3", className)}>
+    <div className={className}>
+      {heading && <p className={cx("mb-2 text-xs uppercase tracking-widest", headingClassName)}>{heading}</p>}
+      <div className="flex flex-wrap gap-3 [justify-content:inherit]">
       <Badge href={c?.playStoreUrl ?? c?.apkUrl ?? null} logo={<PlayLogo />} small={c?.playStoreUrl ? "Get it on" : "Download for"} big={c?.playStoreUrl ? "Google Play" : "Android (APK)"} label={c?.playStoreUrl ? "Get Ebookvox on Google Play" : "Download the Ebookvox Android app"} />
       <Badge href={c?.appStoreUrl ?? null} logo={<AppleLogo />} small="Download on the" big="App Store" label="Download Ebookvox on the App Store" />
+      </div>
     </div>
   );
 }

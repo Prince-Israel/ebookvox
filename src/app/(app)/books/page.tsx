@@ -5,6 +5,7 @@ import { Async, Button, EmptyState, PageTitle, Skeleton, cx } from "@/components
 import { BookCard, type BookItem } from "@/components/BookCard";
 import { api, useApi } from "@/lib/client";
 import { AdSlot } from "@/components/AdSlot";
+import { countryName } from "@/lib/countries";
 import { PublisherPromo } from "@/components/PublisherPromo";
 
 const grid = "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4";
@@ -25,7 +26,7 @@ export default function BooksPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const query = useMemo(() => new URLSearchParams({ ...(debounced && { q: debounced }), ...(category && { category }), ...(view !== "all" && { type: view }) }), [debounced, category, view]);
   const url = `/api/books?${query}`;
-  const state = useApi<{ books: BookItem[]; categories: string[]; currency: string; total: number }>(url, "We couldn't load books. Please try again.");
+  const state = useApi<{ books: BookItem[]; categories: string[]; currency: string; country: string | null; total: number }>(url, "We couldn't load books. Please try again.");
   useEffect(() => { setMore([]); setPage(1); }, [url]);
   const all = [...(state.data?.books ?? []), ...more];
   const free = all.filter((b) => b.isFree);
@@ -52,7 +53,7 @@ export default function BooksPage() {
 
   return (
     <div>
-      <PageTitle title="Books" sub={state.data ? `Prices shown in ${state.data.currency}` : "Discover your next read"} />
+      <PageTitle title="Books" sub={state.data ? `Prices shown in ${state.data.currency}${state.data.country ? ` · ${countryName(state.data.country)}` : ""}` : "Discover your next read"} />
       <div className="sticky top-[3.6rem] z-20 -mx-4 mb-6 space-y-3 bg-bg/90 px-4 py-3 backdrop-blur sm:mx-0 sm:px-0">
         <div className="relative">
           <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted" />

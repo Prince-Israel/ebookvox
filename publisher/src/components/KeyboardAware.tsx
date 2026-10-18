@@ -32,7 +32,7 @@ export function KeyboardAware() {
         const r = el.getBoundingClientRect();
         const room = view - r.height;
         const want = top + Math.max(16, room / 2 - 24); // a little above centre, so the label above stays visible
-        if (r.top < top + 8 || r.bottom > top + view - 8 || Math.abs(r.top - want) > view * 0.35) window.scrollBy({ top: r.top - want, behavior: "smooth" });
+        if (r.top < top + 8 || r.bottom > top + view - 8 || Math.abs(r.top - want) > view * 0.2) window.scrollBy({ top: r.top - want, behavior: "smooth" });
         el.scrollIntoView({ block: "nearest", behavior: "smooth" }); // also scrolls an enclosing sheet / dialog
       }, 280);
     };

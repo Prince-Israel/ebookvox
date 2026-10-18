@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 
 export type PublicConfig = {
+  build: string | null;
   publisherUrl: string;
   publisherSignUpUrl: string;
   playStoreUrl: string | null;

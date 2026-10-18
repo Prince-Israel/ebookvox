@@ -8,13 +8,13 @@
 
 ## Which version do I have?
 
-`VERSION.txt` lists the current build (**Android 1.2.1 build 4, iPhone 1.2.0 build 3**). The installed app shows the same at the bottom of **Profile**. Each new APK has a higher build number, so
+`VERSION.txt` lists the current build (**1.3.0, build 5**). The installed app shows the same at the bottom of **Profile**. Each new APK has a higher build number, so
 installing it over an older one updates it (if Android refuses with "App not installed", uninstall the old Ebookvox first).
 
 ## Where the app gets its content
 
 The mobile app is a native shell around the Reader web app, so it needs the Reader server to be reachable.
-These builds point at `http://192.168.3.238:3230` (the development Mac on its Wi‑Fi network), so the phone must be on
+These builds point at the development Mac's address on your network (see `VERSION.txt`, currently `http://172.20.10.3:3230`), so the phone must be on
 the same network with the Reader running (`npx next start -p 3230`).
 
 To build against your deployed (https) server instead:

@@ -431,6 +431,16 @@ async function main() {
   ok(/\/sign-up$/.test(cfg.publisherSignUpUrl) && cfg.publisherSignUpUrl.startsWith(cfg.publisherUrl) && typeof cfg.apkUrl === "string" && cfg.playStoreUrl === null && cfg.appStoreUrl === null && cfg.adsense === null, "public config gives the Publisher sign-up link and store links, and no ads until AdSense is configured", cfg);
   ok(!JSON.stringify(cfg).match(/secret|password|key/i), "public config contains no secrets");
   ok((await fetch(BASE + "/ads.txt")).status === 404, "ads.txt is absent until ADSENSE_CLIENT is set");
+  // geo: where the visitor is comes from CDN/IP first; with no usable address (private network) the device's time zone is used
+  const geoFetch = async (path: string, headers: Record<string, string>) => (await fetch(BASE + path, { headers })).json();
+  const gLondon = await geoFetch("/api/geo", { cookie: "ev-tz=Europe%2FLondon" });
+  ok(gLondon.country === "GB" && gLondon.currency === "GBP", "with no usable IP, the device's time zone (London) places the visitor in the UK", gLondon);
+  const bNairobi = await geoFetch("/api/books?type=paid&pageSize=2", { cookie: "ev-tz=Africa%2FNairobi" });
+  ok(bNairobi.country === "KE" && bNairobi.currency === "USD" && bNairobi.books.every((b: any) => b.price?.currency === "USD"), "a phone in Kenya sees USD prices (Kenya has no local currency here)", { c: bNairobi.country, cur: bNairobi.currency });
+  const bLagos = await geoFetch("/api/books?type=paid&pageSize=2", { cookie: "ev-tz=Africa%2FLagos" });
+  ok(bLagos.currency === "NGN" && bLagos.books[0].price.amountMinor > bNairobi.books[0].price.amountMinor, "a phone in Nigeria sees naira prices (a bigger number than the same book in dollars)");
+  const bCdn = await geoFetch("/api/books?type=paid&pageSize=1", { "cf-ipcountry": "DE", cookie: "ev-tz=Europe%2FLondon" });
+  ok(bCdn.currency === "EUR" && bCdn.country === "DE", "the CDN's country beats the device time zone (a UK-timezone phone connecting from Germany pays in euro)");
   ok(safeNext("/library?x=1") === "/library?x=1" && safeNext("//evil.example") === null && safeNext("https://evil.example") === null && safeNext("/\\evil") === null && safeNext(null) === null, "post-login destinations must be same-site paths");
   process.env.GOOGLE_CLIENT_ID = "test-client"; process.env.GOOGLE_CLIENT_SECRET = "test-secret";
   const url = new URL(await buildAuthUrl("google", { mobile: true, next: "/books" }));

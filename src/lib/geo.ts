@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { isCountry } from "./countries";
+import { countryFromTimeZone } from "./tz";
 
 const cache = new Map<string, { country: string | null; at: number }>();
 const HEADERS = ["x-vercel-ip-country", "cf-ipcountry", "cloudfront-viewer-country", "x-country-code", "x-appengine-country"];
@@ -14,7 +15,13 @@ export async function countryOf(req: NextRequest): Promise<string | null> {
     const v = req.headers.get(h)?.toUpperCase();
     if (v && v.length === 2 && isCountry(v)) return v;
   }
-  const fwd = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "";
+  const fwd = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? req.headers.get("x-real-ip") ?? "";
+  // No usable client address (a phone on the same network as a dev server, a private proxy…): the device's own time zone, which the
+  // app/site reports in the ev-tz cookie, says where the user is far better than where the server happens to be.
+  if (isPrivate(fwd)) {
+    const tz = countryFromTimeZone(decodeURIComponent(req.cookies.get("ev-tz")?.value ?? ""));
+    if (tz && isCountry(tz)) return tz;
+  }
   const key = isPrivate(fwd) ? "self" : fwd;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < 3600_000) { if (hit.country) return hit.country; }

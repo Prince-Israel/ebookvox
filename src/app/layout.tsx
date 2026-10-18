@@ -5,6 +5,7 @@ import "./globals.css";
 import { ToastProvider } from "@/components/ui";
 import { KeyboardAware } from "@/components/KeyboardAware";
 import { NativeBridge } from "@/components/NativeBridge";
+import { GeoHint } from "@/components/GeoHint";
 
 export const metadata: Metadata = {
   title: { default: "Ebookvox — Your Words. Our Voice.", template: "%s · Ebookvox" },
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ToastProvider>{children}</ToastProvider>
         <KeyboardAware />
         <NativeBridge />
+        <GeoHint />
       </body>
     </html>
   );

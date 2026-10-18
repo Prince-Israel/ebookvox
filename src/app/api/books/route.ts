@@ -27,6 +27,7 @@ export const GET = route(async (req) => {
   const ownedSet = new Set(owned.map((o) => o.bookId));
   return {
     currency: v.currency,
+    country: v.country,
     total,
     page,
     categories: cats.map((c) => c.category),
