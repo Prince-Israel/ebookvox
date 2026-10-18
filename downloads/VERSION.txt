@@ -1,9 +1,9 @@
 Ebookvox Reader mobile apps
-Android: version 1.4.0 (build 7)   <- Ebookvox-Reader-android.apk
-iPhone:  version 1.4.0 (build 7)   <- Ebookvox-Reader-ios-unsigned.ipa / -simulator.zip
-Built:   2026-10-18 16:34 UTC
+Android: version 1.5.0 (build 8)   <- Ebookvox-Reader-android.apk
+iPhone:  version 1.5.0 (build 8)   <- Ebookvox-Reader-ios-unsigned.ipa / -simulator.zip
+Built:   2026-10-18 21:06 UTC
 Server:  http://192.168.3.238:3230  (the Reader must be running there: bash scripts/start-all.sh — and the phone on the same network)
-APK SHA-256: a63037820a2ab2eebf2d2c84f87ebf29f87a08cd207bf877de87a129e120d9f6
+APK SHA-256: 41ed76b0161b47f44b13229a8aa18da18a81cbd3cd151e3efa4b768a33370850
 
 If the app can't reach the server it shows a "Connect to internet" page with the address it tried.
 The same version/build is shown at the bottom of the app's Profile page.

@@ -13,6 +13,7 @@ import { BookCarousel } from "@/components/BookCarousel";
 import { PublisherPromo } from "@/components/PublisherPromo";
 import { GetTheApp } from "@/components/GetTheApp";
 import { AdSlot } from "@/components/AdSlot";
+import { AdBand, NativeBanners } from "@/components/NativeBanners";
 import { api, ApiFailure, useApi } from "@/lib/client";
 import { wordCount } from "@/lib/text";
 import { formatMoney } from "@/lib/money";
@@ -129,6 +130,8 @@ export default function HomePage() {
 
   return (
     <div className="space-y-10">
+      <NativeBanners />
+      <AdSlot name="homeTop" className="-mb-4" />
       <section className="anim-up">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-accent">Your Words. Our Voice.</p>
         <h1 className="mt-2 text-4xl font-semibold sm:text-5xl">{user ? `Welcome back, ${user.firstName}` : "Welcome to Ebookvox"}</h1>
@@ -175,7 +178,6 @@ export default function HomePage() {
 
       <BookCarousel />
 
-      <AdSlot name="home" />
       <PublisherPromo />
 
       {doc && (
@@ -184,9 +186,9 @@ export default function HomePage() {
             <div className="flex min-w-0 items-center gap-2"><FileText className="size-5 shrink-0 text-accent" /><h2 className="truncate text-2xl font-semibold">{doc.title}</h2><Badge tone="accent">{doc.kind}</Badge></div>
             <Button size="sm" variant="ghost" onClick={pb.stop}><X className="size-4" /> Close</Button>
           </div>
-          <div className="lg:grid lg:grid-cols-[1fr_24rem] lg:items-start lg:gap-6">
-            <Card className="mb-4 max-h-[60dvh] overflow-y-auto lg:mb-0 lg:max-h-[70dvh]"><DocView blocks={blocks} chunks={chunks} activeChunk={engine.index} onPick={pickBlock} /></Card>
-            <div className="hidden lg:sticky lg:top-20 lg:block">
+          <div className="xl:grid xl:grid-cols-[1fr_24rem] xl:items-start xl:gap-6">
+            <Card className="mb-4 max-h-[60dvh] overflow-y-auto xl:mb-0 xl:max-h-[70dvh]"><DocView blocks={blocks} chunks={chunks} activeChunk={engine.index} onPick={pickBlock} /></Card>
+            <div className="hidden xl:sticky xl:top-20 xl:block">
               <Player engine={engine} voice={voice} onVoice={setVoice} speed={speed} onSpeed={setSpeed} />
             </div>
           </div>
@@ -219,9 +221,9 @@ export default function HomePage() {
         <Async state={recent} skeleton={<Skeleton className="h-24 w-full" />} isEmpty={(d) => d.documents.length === 0}
           empty={<EmptyState icon={<FileText className="size-8" />} title="No documents yet" body="Text you read aloud and files you upload are saved here so you can listen again." />}>
           {(d) => (
-            <ul className="grid gap-3 sm:grid-cols-2">
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {d.documents.map((x) => (
-                <li key={x.id} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3 pl-4">
+                <li key={x.id} className="flex min-w-0 items-center gap-3 rounded-2xl border border-line bg-surface p-3 pl-4">
                   <button onClick={() => openRecent(x.id)} disabled={busy === "open"} className="min-w-0 flex-1 text-left">
                     <p className="truncate font-semibold">{x.title}</p>
                     <p className="text-xs text-muted">{x.kind} · {when(x.createdAt)}</p>
@@ -234,6 +236,8 @@ export default function HomePage() {
         </Async>
       </section>)}
       <GetTheApp />
+      <AdSlot name="homeBottom" />
+      <AdBand />
       <AuthPrompt open={!!prompt} onClose={() => setPrompt(null)} next="/home" reason={prompt ?? ""} />
     </div>
   );

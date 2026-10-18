@@ -73,7 +73,7 @@ function Reader({ s }: { s: BookSession }) {
         </div>
       </header>
 
-      <div className="lg:grid lg:grid-cols-[1fr_24rem] lg:items-start lg:gap-6">
+      <div className="xl:grid xl:grid-cols-[1fr_24rem] xl:items-start xl:gap-6">
         <Card className="min-h-[50dvh] px-4 py-6 sm:px-10 sm:py-10">
           <div className="mb-6 flex items-center justify-between gap-3">
             <h2 className="min-w-0 break-words text-2xl font-semibold">{ch?.title}</h2>
@@ -92,12 +92,12 @@ function Reader({ s }: { s: BookSession }) {
           </div>
         </Card>
 
-        <div className="sticky top-20 hidden lg:block">
+        <div className="sticky top-20 hidden xl:block">
           <Player engine={engine} voice={pb.voice} onVoice={pb.setVoice} speed={pb.speed} onSpeed={pb.setSpeed} />
           {s.meta.progress.started && s.meta.progress.percent > 0 && <p className="mt-3 text-center text-xs text-muted">Resumed from where you left off · position saves automatically</p>}
         </div>
       </div>
-      <div className="h-24 lg:hidden" aria-hidden />
+      <div className="h-24 xl:hidden" aria-hidden />
 
       <Sheet open={toc} onClose={() => setToc(false)} title="Chapters">
         <ol className="space-y-1.5">

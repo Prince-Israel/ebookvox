@@ -47,6 +47,9 @@ model User {
   notifications   Notification[]
   tickets         Ticket[]
   documents       Document[]
+  walletTx        WalletTx[]
+  charges         Charge[]
+  subscriptions   Subscription[]
 }
 
 model Avatar {
@@ -304,4 +307,76 @@ model PlatformConfig {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+// ---- Wallet, card charges and the ad-free subscription ----
+
+// Append-only ledger. A reader's balance in a currency = SUM(amountMinor) of their rows in that currency.
+model WalletTx {
+  id          String   @id @default(cuid())
+  userId      String
+  currency    String
+  type        String // TOPUP | SUBSCRIPTION | REFUND | ADJUSTMENT
+  amountMinor Int // signed: + adds funds, - spends them
+  description String
+  chargeId    String?  @unique // the paid Paystack top-up this credit came from (makes crediting idempotent)
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, currency])
+}
+
+// A card payment that is not a book order: a wallet top-up or a subscription. Verified with Paystack's server like orders are.
+model Charge {
+  id            String    @id @default(cuid())
+  reference     String    @unique
+  userId        String
+  kind          String // TOPUP | SUBSCRIPTION
+  plan          String? // MONTHLY | YEARLY (subscriptions)
+  amountMinor   Int
+  currency      String
+  fxRate        Float? // USD → currency rate used for a subscription price
+  status        String    @default("PENDING") // PENDING | PAID | FAILED
+  paystackTxId  String?
+  channel       String?
+  failureReason String?
+  paidAt        DateTime?
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Subscription {
+  id               String   @id @default(cuid())
+  userId           String
+  plan             String // MONTHLY | YEARLY
+  status           String   @default("ACTIVE") // ACTIVE | EXPIRED
+  startedAt        DateTime @default(now())
+  currentPeriodEnd DateTime
+  autoRenew        Boolean  @default(false) // renew from the wallet when the period ends and there are funds
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments         SubscriptionPayment[]
+
+  @@index([userId, status])
+}
+
+model SubscriptionPayment {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  userId         String
+  plan           String
+  amountMinor    Int
+  currency       String
+  usdMinor       Int // the dollar price it was converted from (200 monthly, 2160 yearly)
+  method         String // CARD | WALLET
+  reference      String       @unique
+  periodStart    DateTime
+  periodEnd      DateTime
+  createdAt      DateTime     @default(now())
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

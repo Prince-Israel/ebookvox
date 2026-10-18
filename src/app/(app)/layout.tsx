@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { getUser, publicUser } from "@/lib/auth";
+import { getUser, publicUserFull } from "@/lib/auth";
 import { UserProvider } from "@/components/UserContext";
 import { AppShell } from "@/components/AppShell";
 import { PlaybackProvider } from "@/components/audio/PlaybackProvider";
@@ -11,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getUser();
   const unread = user ? await db.notification.count({ where: { userId: user.id, readAt: null } }) : 0;
   return (
-    <UserProvider initial={user ? publicUser(user) : null} initialUnread={unread}>
+    <UserProvider initial={user ? await publicUserFull(user) : null} initialUnread={unread}>
       <PlaybackProvider>
         <AppShell>{children}</AppShell>
       </PlaybackProvider>

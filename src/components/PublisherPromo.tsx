@@ -9,7 +9,7 @@ export function PublisherPromo({ compact = false, className }: { compact?: boole
   const href = c?.publisherSignUpUrl ?? "#";
   return (
     <section aria-labelledby="pubpromo" className={cx("overflow-hidden rounded-3xl bg-[#3a261c] text-[#fbf1e4] shadow-card", compact ? "p-5" : "p-6 sm:p-8", className)}>
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-4">
           <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/15"><PenLine className="size-6" /></div>
           <div className="min-w-0">

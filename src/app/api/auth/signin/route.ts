@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { ApiError, clientIp, rateLimit, readJson, route } from "@/lib/api";
-import { createSession, publicUser, verifyPassword } from "@/lib/auth";
+import { createSession, publicUserFull, verifyPassword } from "@/lib/auth";
 import { emailSchema } from "@/lib/validation";
 
 const DUMMY = "$2b$12$C6UzMDM.H6dfI/f/IKcEeO5zsGZ1ZrVWuRz6C5rYQ8JpV5B4h4j8y";
@@ -18,5 +18,5 @@ export const POST = route(async (req) => {
   if (user.status === "SUSPENDED") throw new ApiError(403, "Your account has been suspended. Please contact Ebookvox support.");
   if (user.status !== "ACTIVE") throw new ApiError(401, "Incorrect email or password.");
   await createSession(user.id, req.headers.get("user-agent"));
-  return { user: publicUser(user) };
+  return { user: await publicUserFull(user) };
 });

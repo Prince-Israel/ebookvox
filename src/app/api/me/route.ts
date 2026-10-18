@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { readJson, route } from "@/lib/api";
-import { publicUser, requireUser } from "@/lib/auth";
+import { publicUserFull, requireUser } from "@/lib/auth";
 import { countrySchema, normalizePhone } from "@/lib/validation";
 import { currencyForCountry } from "@/lib/countries";
 import { resolveVoice, SPEEDS } from "@/lib/voices";
 import { notify } from "@/lib/notify";
 
-export const GET = route(async () => ({ user: publicUser(await requireUser()) }));
+export const GET = route(async () => ({ user: await publicUserFull(await requireUser()) }));
 
 const patchSchema = z
   .object({
@@ -52,5 +52,5 @@ export const PATCH = route(async (req) => {
   const updated = await db.user.update({ where: { id: u.id }, data });
   if (d.firstName || d.lastName || d.country || d.phone !== undefined)
     await notify(u.id, "ACCOUNT_UPDATE", "Profile updated", "Your account details were saved.", "/profile");
-  return { user: publicUser(updated) };
+  return { user: await publicUserFull(updated) };
 });

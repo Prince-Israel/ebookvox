@@ -1,3 +1,4 @@
+import { entitlementOf } from "./subscription";
 import { voiceForCountry } from "./voices";
 import { cookies } from "next/headers";
 import { createHash, randomBytes } from "node:crypto";
@@ -61,4 +62,10 @@ export function publicUser(u: DbUser) {
   // Until the user picks a voice themselves, their default follows their country (and moves with it if they change country).
   return { ...rest, defaultVoice: u.voiceChosen ? u.defaultVoice : voiceForCountry(u.country), hasPassword: !!passwordHash, emailVerified: !!u.emailVerifiedAt };
 }
-export type PublicUser = ReturnType<typeof publicUser>;
+export type PublicUser = ReturnType<typeof publicUser> & { adFree?: boolean; subscription?: { plan: "MONTHLY" | "YEARLY"; currentPeriodEnd: string; autoRenew: boolean } | null };
+
+/** The user plus whether their subscription is active right now (which turns every ad off). */
+export async function publicUserFull(u: DbUser): Promise<PublicUser> {
+  const ent = await entitlementOf(u.id);
+  return { ...publicUser(u), adFree: ent.adFree, subscription: ent.subscription };
+}

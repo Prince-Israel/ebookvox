@@ -4,7 +4,6 @@ import { BookOpen, Search } from "lucide-react";
 import { Async, Button, EmptyState, PageTitle, Skeleton, cx } from "@/components/ui";
 import { BookCard, type BookItem } from "@/components/BookCard";
 import { api, useApi } from "@/lib/client";
-import { AdSlot } from "@/components/AdSlot";
 import { countryName } from "@/lib/countries";
 import { PublisherPromo } from "@/components/PublisherPromo";
 
@@ -72,7 +71,6 @@ export default function BooksPage() {
         {() => (<>
           {view !== "paid" && section("free-books", "FREE BOOKS", free, "No free books match")}
           {view !== "free" && section("paid-books", "PAID BOOKS", paid, "No paid books match")}
-          <AdSlot name="books" className="mb-10" />
           {all.length < total && <div className="mb-10 flex flex-col items-center gap-2"><p className="text-sm text-muted">Showing {all.length} of {total.toLocaleString()} books</p><Button variant="secondary" loading={loadingMore} onClick={showMore}>Show more books</Button></div>}
         </>)}
       </Async>

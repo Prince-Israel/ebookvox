@@ -28,6 +28,23 @@ In DirectAdmin → **System Info & Files → File Manager** (or SFTP), create th
 and use **Extract**. Then continue with Path A (step 4 onwards) or Path B. Each app runs from its own folder and has its own `.env`.
 The zips never contain `.env` files, databases or `node_modules`; you create those on the server.
 
+## Quick answer — hosting the web app on a DirectAdmin **shared** account
+
+1. **Check you can.** DirectAdmin → *Extra Features → Setup Node.js App*. If that menu isn't there, ask DomainKing to enable **Node.js (CloudLinux Node.js Selector)** on your plan and to confirm how much RAM / how many processes you get. Without Node.js the apps cannot run (they are not PHP).
+2. **Start with the Reader** (the part users see). Publisher and Admin are heavier to host and can follow on a bigger plan — each of the three apps needs roughly 300–600 MB of RAM.
+3. **Make the zips** on your Mac: `bash scripts/package-for-upload.sh` → `upload/ebookvox-reader.zip` (and publisher/admin).
+4. **DirectAdmin → File Manager**: create `reader/` in your home folder, upload `ebookvox-reader.zip` into it, **Extract**.
+5. **Subdomain + HTTPS**: *Subdomain Management* → `app`; *SSL Certificates → Let's Encrypt* (tick the subdomain).
+6. **Create the app**: *Setup Node.js App → Create* → Node **20**, mode **Production**, application root **reader**, application URL **app.yourdomain.com**, startup file **server.js** (copy `deploy/directadmin/server.js` into `reader/` as `server.js` first).
+7. **Environment**: in `reader/` create `.env` from `.env.example` (File Manager → New File): `APP_URL=https://app.yourdomain.com`, new random secrets (`bash scripts/generate-secrets.sh`), Paystack **live** key, SMTP (`mail.yourdomain.com`), Azure Speech, and your ad settings (`docs/ADS.md`).
+8. **Install and build — on the server**: in the app's page click **Run NPM Install** (or use the SSH/Terminal command it shows): then
+   `npx prisma db push && npx prisma generate && NODE_OPTIONS=--max-old-space-size=1024 npx next build`. (Build on the server, not on your Mac: the image and database libraries are compiled for the operating system.)
+   First time only: `npx tsx prisma/seed.ts`, and optionally the free library `npx tsx prisma/seed-catalog.ts --target 500`.
+9. **Start**: press **Restart** in *Setup Node.js App*, open `https://app.yourdomain.com`. After any `.env` edit press **Restart** again.
+10. **Then**: Paystack webhook `https://app.yourdomain.com/api/paystack/webhook`; Google/Apple redirect URLs (`docs/SOCIAL_LOGIN.md`); rebuild the mobile apps with `EBOOKVOX_URL=https://app.yourdomain.com` (`docs/STORES.md`).
+
+If the app keeps showing 503 errors the plan is too small for it — see the full guide below, and consider a VPS.
+
 ## Path A — shared DirectAdmin with Node.js Selector
 
 **Be realistic about limits.** Each app needs roughly 300–600 MB of RAM when running, and `next build` needs about 1 GB while building.

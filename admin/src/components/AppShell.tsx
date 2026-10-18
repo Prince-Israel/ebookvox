@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Activity, Bell, BookCheck, BookOpen, Coins, LayoutDashboard, LifeBuoy, LogOut, Menu, Moon, PenLine, Receipt, Search, Settings, ShoppingBag, Sun, TrendingUp, UserCog, UserRound, Users, X, Loader2, Library } from "lucide-react";
+import { Activity, Bell, BookCheck, BookOpen, Coins, LayoutDashboard, LifeBuoy, LogOut, Menu, Moon, PenLine, Receipt, Search, Settings, ShoppingBag, Sun, TrendingUp, UserCog, UserRound, Users, X, Loader2, Library, Crown } from "lucide-react";
 import { Logo } from "./Logo";
 import { Avatar } from "./Avatar";
 import { cx } from "./ui";
@@ -14,7 +14,7 @@ type Item = { href: string; label: string; Icon: typeof Bell; perm?: Permission[
 const GROUPS: Array<{ title: string; items: Item[] }> = [
   { title: "Overview", items: [{ href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard }] },
   { title: "People", items: [
-    { href: "/users", label: "Users", Icon: Users, perm: ["users"] }, { href: "/publishers", label: "Publishers", Icon: UserRound, perm: ["publishers"] }, { href: "/authors", label: "Authors", Icon: PenLine, perm: ["authors"] } ] },
+    { href: "/users", label: "Users", Icon: Users, perm: ["users"] }, { href: "/subscribers", label: "Subscribers", Icon: Crown, perm: ["users"] }, { href: "/publishers", label: "Publishers", Icon: UserRound, perm: ["publishers"] }, { href: "/authors", label: "Authors", Icon: PenLine, perm: ["authors"] } ] },
   { title: "Catalogue", items: [
     { href: "/books", label: "All Books", Icon: Library, perm: ["books"] }, { href: "/publisher-books", label: "Publisher Books", Icon: BookOpen, perm: ["books", "book_review"] }, { href: "/book-review", label: "Book Review", Icon: BookCheck, perm: ["book_review"] } ] },
   { title: "Finance", items: [

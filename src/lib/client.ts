@@ -23,7 +23,7 @@ export async function api<T = any>(url: string, init: RequestInit & { json?: unk
     throw new ApiFailure("We couldn't reach Ebookvox. Check your internet connection and try again.");
   }
   if (res.status === 401 && !url.startsWith("/api/auth/")) {
-    if (typeof window !== "undefined") window.location.href = "/sign-in?expired=1";
+    if (typeof window !== "undefined" && !(window as unknown as { __signingOut?: boolean }).__signingOut) window.location.href = "/sign-in?expired=1";
     throw new ApiFailure("Your session has expired. Please sign in again.", 401);
   }
   const ct = res.headers.get("content-type") ?? "";

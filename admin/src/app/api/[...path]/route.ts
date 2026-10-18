@@ -125,6 +125,9 @@ on("GET", "search", "auth", async ({ admin, q }) => {
 });
 
 // ------------------------------------------------------------------ users
+// Ad-free subscribers (Reader platform): who they are, plan, status, what they paid and how, their wallet.
+on("GET", "subscribers", "users", async ({ q }) => reader("GET", "subscriptions", { query: qp(q, "q", "status", "plan", "page", "pageSize") }));
+on("GET", "subscribers/:id", "users", async ({ p }) => reader("GET", `subscriptions/${p[0]}`));
 on("GET", "users", "users", async ({ q }) => reader("GET", "users", { query: qp(q, "q", "status", "page", "pageSize") }));
 on("GET", "users/:id", "users", async ({ p }) => reader("GET", `users/${p[0]}`));
 on("PATCH", "users/:id", "users", async ({ admin, p, body }) => {

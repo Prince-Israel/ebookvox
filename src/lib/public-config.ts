@@ -8,12 +8,19 @@ export type PublicConfig = {
   playStoreUrl: string | null;
   appStoreUrl: string | null;
   apkUrl: string;
-  adsense: { client: string; slots: { home: string | null; books: string | null } } | null;
+  ads: {
+    adsense: { client: string; slots: { homeTop: string | null; homeBottom: string | null } } | null;
+    videoTagUrl: string | null;
+    admob: { testing: boolean; android: { banner: string; video: string }; ios: { banner: string; video: string } };
+  };
 };
 
 let cache: PublicConfig | null = null;
 let inflight: Promise<PublicConfig | null> | null = null;
 const load = () => (inflight ??= fetch("/api/public-config").then((r) => r.json()).then((c) => (cache = c)).catch(() => null));
+
+/** The same config without a hook: resolves once it has loaded (null if it can't be reached). */
+export const getPublicConfig = (): Promise<PublicConfig | null> => (cache ? Promise.resolve(cache) : load());
 
 export function usePublicConfig() {
   const [c, setC] = useState<PublicConfig | null>(cache);

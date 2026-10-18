@@ -32,6 +32,7 @@ function lum(rgb: number[]) { const f = (v: number) => { v /= 255; return v <= 0
 const ratio = (a: number[], b: number[]) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
 const parseRgb = (s: string) => (s.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
 
+const IMA_STUB = `window.__ads={requests:0,started:0};window.google={ima:{AdDisplayContainer:function(){this.initialize=function(){}},AdsLoader:function(){var L={};this.addEventListener=function(t,cb){L[t]=cb};this.requestAds=function(){window.__ads.requests++;setTimeout(function(){L.adsManagerLoaded({getAdsManager:function(){var M={};return{addEventListener:function(t,cb){M[t]=cb},init:function(){},start:function(){window.__ads.started++;M.start&&M.start();setTimeout(function(){M.allAdsCompleted&&M.allAdsCompleted()},300)},destroy:function(){}}}})},40)}},AdsRequest:function(){},AdErrorEvent:{Type:{AD_ERROR:"adError"}},AdsManagerLoadedEvent:{Type:{ADS_MANAGER_LOADED:"adsManagerLoaded"}},AdEvent:{Type:{ALL_ADS_COMPLETED:"allAdsCompleted",SKIPPED:"skipped",CONTENT_RESUME_REQUESTED:"resume",USER_CLOSE:"close",STARTED:"start"}},ViewMode:{NORMAL:"n"}}};`;
 async function main() {
   const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
   const phone: BrowserContext = await browser.newContext({ ...devices["iPhone 13"], permissions: [] });
@@ -116,7 +117,7 @@ async function main() {
   ok(/\/sign-up$/.test((await promo.getAttribute("href")) ?? "") && (await promo.getAttribute("target")) === "_blank", "Home invites authors & publishers to publish — the button opens the Publisher site's registration page");
   ok(await p.getByRole("heading", { name: "Are you an author or publisher?" }).isVisible(), "the author/publisher banner is shown on Home");
   ok((await p.getByRole("heading", { name: "Take Ebookvox with you" }).count()) === 0, "the Get-the-app section is hidden inside the app");
-  ok((await p.locator("ins.adsbygoogle").count()) === 0, "no ad slots render until AdSense is configured");
+  ok((await p.locator("ins.adsbygoogle").count()) === 0, "inside the mobile app AdSense never renders (the app uses AdMob)");
   await overflow(p, "home");
 
   // ------------------------------------------------------------ read aloud: text
@@ -448,25 +449,80 @@ async function main() {
     await w.goto(BASE + "/sign-in?next=%2Flibrary");
     ok((await w.getByRole("link", { name: /with Apple/ }).getAttribute("href")) === "/api/auth/oauth/apple/start?next=%2Flibrary", "the destination survives the Apple sign-in round trip");
     await w.screenshot({ path: path.join(SHOTS, "web-badges.png") }).catch(() => {});
+    // ---- ads: banners for visitors, a video before the voice, all gone for subscribers ----
+    ok((await w.locator("ins.adsbygoogle").count()) === 0, "(Sign-in page has no ads)");
+    await w.goto(BASE + "/home");
+    await w.waitForFunction(() => document.querySelectorAll("ins.adsbygoogle").length === 2, null, { timeout: 15000 }).catch(() => {});
+    ok((await w.locator("ins.adsbygoogle").count()) === 2, "visitors see a small ad banner at the top of Home and another at the bottom");
+    const slots = await w.locator("ins.adsbygoogle").evaluateAll((els) => els.map((e) => ({ slot: e.getAttribute("data-ad-slot"), h: e.getBoundingClientRect().height, top: e.getBoundingClientRect().top + scrollY })));
+    ok(slots[0].slot === "1111111111" && slots[1].slot === "2222222222" && slots.every((x) => x.h <= 60) && slots[0].top < slots[1].top, "the banners are very small (one line) and use the header and footer ad units", slots);
+    await w.goto(BASE + "/subscribe");
+    await w.getByRole("radio", { name: /Yearly/ }).waitFor({ timeout: 15000 });
+    ok((await w.getByRole("radio", { name: /Monthly/ }).count()) === 1 && (await w.getByRole("radio", { name: /Yearly/ }).count()) === 1 && await w.getByText("Save 10%").isVisible(), "the subscription page offers a monthly and a yearly plan");
+    ok(await w.getByText("$2.00 a month, or $1.80 a month on the yearly plan").isVisible(), "the page states the dollar prices");
+    await w.getByRole("button", { name: /^Subscribe/ }).click();
+    ok(await w.getByRole("dialog").getByText(/sign in to subscribe/i).isVisible(), "a visitor who taps Subscribe is asked to sign in or register first");
     await wc.close();
+
+    // the video ad: once before the voice, again after the listener has left the app, never for subscribers
+    const gc = await browser.newContext({ viewport: { width: 1280, height: 900 }, extraHTTPHeaders: { "cf-ipcountry": "NG" } });
+    await gc.addInitScript(INIT);
+    await gc.route("**/ima3.js", (r) => r.fulfill({ contentType: "application/javascript", body: IMA_STUB }));
+    const gp = await gc.newPage();
+    const gmail = `ads.${Date.now().toString(36)}@example.com`;
+    await gp.request.post(BASE + "/api/auth/signup", { data: { firstName: "Ad", lastName: "Viewer", email: gmail, password: pw, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8012345678" } });
+    const adCount = () => gp.evaluate(() => (window as any).__ads?.started ?? 0);
+    const speaking = () => gp.waitForFunction(() => { const a = (window as any).__cur; return a && !a.paused && a.currentTime > 0.2 && !a.src.startsWith("data:"); }, null, { timeout: 40000 });
+    await gp.goto(BASE + "/home");
+    await gp.locator("#ra-text").fill("This is the text for the ad test.\n\n" + Array.from({ length: 6 }, (_, i) => `Paragraph ${i + 1} gives the player enough to say while we check the ads.`).join("\n\n"));
+    await gp.getByRole("button", { name: "Read Aloud", exact: true }).click();
+    await speaking();
+    ok((await adCount()) === 1, "a video ad plays once before the voice starts reading", await gp.evaluate(() => (window as any).__ads));
+    await gp.getByRole("button", { name: "Pause", exact: true }).first().click();
+    await gp.getByRole("button", { name: "Play", exact: true }).first().click();
+    await gp.waitForFunction(() => (window as any).__cur?.paused === false, null, { timeout: 20000 });
+    ok((await adCount()) === 1, "pausing and resuming within the same listening session shows no second ad");
+    await gp.getByRole("button", { name: "Pause", exact: true }).first().click();
+    await gp.evaluate(() => { Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true }); document.dispatchEvent(new Event("visibilitychange")); Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true }); document.dispatchEvent(new Event("visibilitychange")); });
+    await gp.getByRole("button", { name: "Play", exact: true }).first().click();
+    await gp.waitForFunction(() => (window as any).__ads.started === 2 && (window as any).__cur?.paused === false, null, { timeout: 40000 });
+    ok((await adCount()) === 2, "after the listener leaves the app and comes back, the ad plays again before the voice");
+    // subscribe (database shortcut for the payment) → every ad disappears
+    const gu = await db.user.findFirst({ where: { email: gmail } });
+    await db.subscription.create({ data: { userId: gu!.id, plan: "MONTHLY", currentPeriodEnd: new Date(Date.now() + 20 * 86400_000) } });
+    await gp.goto(BASE + "/home");
+    await gp.waitForTimeout(1500);
+    ok((await gp.locator("ins.adsbygoogle").count()) === 0 && (await gp.getByText("Advertisement").count()) === 0, "a subscriber sees no ad banners at all");
+    await gp.locator("#ra-text").fill("Subscribers hear this straight away, with no advertisement before it begins. " + "More words to read. ".repeat(20));
+    await gp.getByRole("button", { name: "Read Aloud", exact: true }).click();
+    await speaking();
+    ok((await adCount()) === 0, "a subscriber hears the voice with no video ad");
+    await gp.goto(BASE + "/subscribe");
+    await gp.getByRole("heading", { name: "You're ad-free" }).waitFor({ timeout: 15000 });
+    ok(await gp.getByRole("heading", { name: "You're ad-free" }).isVisible() && await gp.getByText("active until").isVisible(), "the subscription page shows the active plan and its end date");
+    ok(await gp.getByRole("link", { name: /Subscription/ }).first().isVisible(), "the menu says “Subscription” once subscribed");
+    await gc.close();
+
   }
 
   section("Responsive sweep (iPhone, Android, tablet, desktop)");
-  const profiles: Array<[string, any]> = [["Pixel 7", devices["Pixel 7"]], ["iPad (gen 7)", devices["iPad (gen 7)"]], ["Desktop 1280", { viewport: { width: 1280, height: 800 } }], ["Small phone 320", { viewport: { width: 320, height: 640 }, isMobile: true, hasTouch: true }]];
+  const profiles: Array<[string, any]> = [["Pixel 7", devices["Pixel 7"]], ["iPad (gen 7)", devices["iPad (gen 7)"]], ["iPad mini portrait", { viewport: { width: 744, height: 1133 }, isMobile: true, hasTouch: true }], ["iPad landscape", { viewport: { width: 1180, height: 820 }, isMobile: true, hasTouch: true }], ["iPad Pro 12.9 portrait", { viewport: { width: 1024, height: 1366 }, isMobile: true, hasTouch: true }], ["Android tablet", { viewport: { width: 800, height: 1280 }, isMobile: true, hasTouch: true }], ["Desktop 1280", { viewport: { width: 1280, height: 800 } }], ["Small phone 320", { viewport: { width: 320, height: 640 }, isMobile: true, hasTouch: true }]];
   const cookies = await phone.cookies();
   for (const [name, opts] of profiles) {
     const ctx = await browser.newContext(opts);
     await ctx.addCookies(cookies);
     const q = await ctx.newPage();
-    for (const route of ["/home", "/books", "/library", "/profile", "/settings", "/orders", "/support", "/notifications", `/books/${(await db.book.findFirst({ where: { title: "Dracula" } }))!.id}`]) {
+    for (const route of ["/home", "/books", "/library", "/profile", "/settings", "/orders", "/support", "/notifications", "/subscribe", "/wallet", `/books/${(await db.book.findFirst({ where: { title: "Dracula" } }))!.id}`]) {
       await q.goto(BASE + route);
       await q.waitForLoadState("networkidle");
       const o = await q.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
       if (o.sw > o.iw + 1) ok(false, `overflow on ${name} ${route} (${o.sw}/${o.iw})`);
     }
     await q.goto(BASE + "/home"); await q.waitForLoadState("networkidle");
+    const w = (opts.viewport?.width ?? opts.screen?.width ?? 0) as number;
+    if (w >= 744) { const side = await q.locator("aside nav").first().isVisible(); const bottom = await q.locator("nav[aria-label=Main].fixed").isVisible().catch(() => false); if (!side || bottom) ok(false, `${name}: tablets should show the side menu (not the phone bottom bar)`); }
     await q.screenshot({ path: `${SHOTS}/sweep-${name.replace(/\W+/g, "_")}.png` });
-    ok(true, `${name}: 9 screens without horizontal overflow`);
+    ok(true, `${name}: 11 screens without horizontal overflow`);
     await ctx.close();
   }
 

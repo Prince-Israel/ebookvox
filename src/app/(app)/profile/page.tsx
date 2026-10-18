@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { ArrowUpRight, Bell, Camera, ChevronRight, LifeBuoy, LogOut, PenLine, Receipt, Settings, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowUpRight, Bell, Camera, ChevronRight, Crown, LifeBuoy, LogOut, PenLine, Receipt, Settings, ShieldCheck, Trash2, Wallet } from "lucide-react";
 import { AccountForm } from "@/components/AccountForm";
 import { Avatar } from "@/components/Avatar";
 import { Badge, Button, Card, PageTitle, useToast } from "@/components/ui";
@@ -9,6 +9,7 @@ import { useUser } from "@/components/UserContext";
 import { api, ApiFailure } from "@/lib/client";
 import { countryName } from "@/lib/countries";
 import { usePublicConfig } from "@/lib/public-config";
+import { usePlayback } from "@/components/audio/PlaybackProvider";
 import { AppVersion } from "@/components/AppVersion";
 
 // Shrinks big phone photos before upload (faster, and handles any size camera image).
@@ -33,6 +34,7 @@ export default function ProfilePage() {
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState(false);
   const cfg = usePublicConfig();
+  const pb = usePlayback();
 
   async function upload(file?: File) {
     if (!file) return;
@@ -65,6 +67,8 @@ export default function ProfilePage() {
 
   async function signOut() {
     setOut(true);
+    (window as unknown as { __signingOut?: boolean }).__signingOut = true;
+    pb.stop(); // stop the voice (and its background fetches) before the session goes away
     try { await api("/api/auth/signout", { method: "POST" }); } catch {}
     try { localStorage.removeItem("ev-theme"); } catch {}
     window.location.href = "/sign-in";
@@ -77,7 +81,7 @@ export default function ProfilePage() {
   return (
     <div>
       <PageTitle title="Profile" />
-      <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
+      <div className="grid gap-6 xl:grid-cols-[22rem_1fr]">
         <div className="space-y-6">
           <Card className="flex flex-col items-center text-center">
             <div className="relative">
@@ -94,6 +98,8 @@ export default function ProfilePage() {
             </div>
           </Card>
           <Card className="p-2 sm:p-3">
+            {link("/subscribe", user.adFree ? "Subscription (ad-free)" : "Go ad-free", Crown)}
+            {link("/wallet", "Wallet", Wallet)}
             {link("/orders", "Orders & payments", Receipt)}
             {link("/support", "Support", LifeBuoy)}
             {link("/notifications", "Notifications", Bell)}

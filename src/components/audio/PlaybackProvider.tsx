@@ -10,6 +10,8 @@ import { api, ApiFailure } from "@/lib/client";
 import { parseBlocks, toChunks, type Block, type Chunk } from "@/lib/text";
 import { DEFAULT_VOICE } from "@/lib/voices";
 import { backgroundAudio } from "@/lib/native-audio";
+import { getPublicConfig, isNativeApp, usePublicConfig } from "@/lib/public-config";
+import { showVideoAd } from "@/lib/video-ad";
 
 export type BookMeta = {
   book: { id: string; title: string; author: string; category: string; totalChars: number };
@@ -80,6 +82,43 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     onFinished: () => handlers.current.onFinished(),
   });
 
+  // ---- the video ad before the voice (skipped for subscribers) ----
+  // One ad before the first reading; after the listener leaves the app, another before the voice plays again. While audio keeps
+  // playing in the background it is the same listening session, so nothing interrupts it.
+  const cfg = usePublicConfig();
+  const adFree = !!user?.adFree;
+  const needAd = useRef(true);
+  const adRef = useRef({ adFree, cfg, playing: false });
+  // "playing" for ad purposes means real narration: the silent clip played inside a tap to unlock audio on phones doesn't count
+  const narrating = engine.playing && !engine.audioEl().src.startsWith("data:");
+  adRef.current = { adFree, cfg, playing: narrating };
+  const needsAd = () => !adRef.current.adFree && needAd.current && !adRef.current.playing; // (the ad settings may still be loading: ensureAd waits for them)
+  const ensureAd = useCallback(async () => {
+    if (!needsAd()) return;
+    needAd.current = false;
+    await showVideoAd(adRef.current.cfg ?? (await getPublicConfig()));
+    // The ad covered the app, which counts as "leaving" it. Wait until we're back on screen, and don't treat our own ad as the listener having left.
+    for (let i = 0; i < 30 && document.visibilityState !== "visible"; i++) await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 300));
+    needAd.current = false;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const left = () => { if (document.visibilityState === "hidden") needAd.current = true; };
+    document.addEventListener("visibilitychange", left);
+    let off: (() => void) | undefined;
+    if (isNativeApp()) import("@capacitor/app").then(({ App }) => App.addListener("appStateChange", (st) => { if (!st.isActive) needAd.current = true; })).then((h) => { off = () => void h.remove(); }).catch(() => {});
+    return () => { document.removeEventListener("visibilitychange", left); off?.(); };
+  }, []);
+  // warm up the web ad script so the first ad starts quickly
+  useEffect(() => { if (!adFree && cfg?.ads.videoTagUrl && !isNativeApp()) { const el = document.createElement("link"); el.rel = "preload"; el.as = "script"; el.href = "https://imasdk.googleapis.com/js/sdkloader/ima3.js"; document.head.appendChild(el); } }, [adFree, cfg]);
+
+  // Starts the voice once the ad is over; if the web view was still waking up and the first attempt didn't take, try once more.
+  const startAfterAd = useCallback(async () => {
+    await engine.play();
+    await new Promise((r) => setTimeout(r, 1500));
+    if (!adRef.current.playing) await engine.play();
+  }, [engine]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ---- reading progress (books only) ----
   const flush = useCallback((keepalive = false) => {
     const s = sessionRef.current;
@@ -141,8 +180,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     flush(true);
     setSession({ kind: "doc", doc });
     setOpening(null);
-    engine.load(toChunks(parseBlocks(doc.text)).map((c) => c.text), 0, autoplay);
-  }, [engine, flush]);
+    const wait = autoplay && needsAd();
+    engine.load(toChunks(parseBlocks(doc.text)).map((c) => c.text), 0, autoplay && !wait);
+    if (wait) void ensureAd().then(() => startAfterAd());
+  }, [engine, flush, ensureAd]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const goChapter = useCallback((i: number, autoplay = false) => {
     const s = sessionRef.current;
@@ -155,8 +196,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   const pickBlock = useCallback((block: number) => {
     const idx = chunks.findIndex((c) => c.block >= block);
-    if (idx >= 0) engine.goTo(idx, true);
-  }, [chunks, engine]);
+    if (idx < 0) return;
+    if (!engine.playing && needsAd()) { engine.goTo(idx, false); void ensureAd().then(() => startAfterAd()); } else engine.goTo(idx, true);
+  }, [chunks, engine, ensureAd]); // eslint-disable-line react-hooks/exhaustive-deps
 
   handlers.current = {
     onChunk: (i) => {
@@ -194,9 +236,12 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     initial.current = null;
     const startBlock = init ? Math.min(init.paragraph, blocks.length - 1) : 0;
     const startChunk = Math.max(0, chunks.findIndex((c) => c.block >= startBlock));
+    const wasAuto = autoNext.current; // moving on to the next chapter by itself: the same listening session, no ad
     const play = autoNext.current || (!!init && !!user?.autoPlay);
     autoNext.current = false;
-    engine.load(chunks.map((c) => c.text), startChunk, play, init && chunks[startChunk]?.block === init.paragraph ? init.audioTime : 0);
+    const wait = play && !wasAuto && needsAd();
+    engine.load(chunks.map((c) => c.text), startChunk, play && !wait, init && chunks[startChunk]?.block === init.paragraph ? init.audioTime : 0);
+    if (wait) void ensureAd().then(() => startAfterAd());
     record({ chapterIndex: chapter.index, paragraphIndex: startBlock, percent: init ? progress.current.percent : computePercent(startBlock), audioTime: init?.audioTime ?? 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapter]);
@@ -219,16 +264,24 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const active = !!session && (engine.count > 0 || engine.loading);
   const go = () => { if (session?.kind === "book" && !onOwnPage) router.push(`/read/${session.id}`); else if (session?.kind === "doc" && !onOwnPage) router.push("/home#reader"); else setFull(true); };
 
-  const value: Ctx = { engine, session, opening, blocks, chunks, voice, setVoice, speed, setSpeed, openBook, openDoc, goChapter, retryChapter, pickBlock, stop, openFull: () => setFull(true) };
+  // what pages and the player buttons use: starting playback from a pause goes through the ad first
+  const gated = useMemo(() => ({
+    ...engine,
+    play: async () => { await ensureAd(); return startAfterAd(); },
+    toggle: () => (engine.playing || engine.loading || !needsAd() ? engine.toggle() : void ensureAd().then(() => startAfterAd())),
+    goTo: (i: number, autoplay = true, t = 0) => { if (autoplay && !engine.playing && needsAd()) { engine.goTo(i, false, t); void ensureAd().then(() => startAfterAd()); } else engine.goTo(i, autoplay, t); },
+  }) as Engine, [engine, ensureAd]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const value: Ctx = { engine: gated, session, opening, blocks, chunks, voice, setVoice, speed, setSpeed, openBook, openDoc, goChapter, retryChapter, pickBlock, stop, openFull: () => setFull(true) };
   const chunkText = chunks[engine.index]?.text ?? "";
 
   return (
     <C.Provider value={value}>
       {children}
       {active && (
-        <div data-hide-on-kb className={`safe-b fixed inset-x-0 bottom-[4.2rem] z-30 px-3 ${onOwnPage ? "lg:hidden" : "lg:bottom-4 lg:left-auto lg:right-4 lg:w-[26rem]"}`}>
+        <div data-hide-on-kb className={`safe-b fixed inset-x-0 bottom-[4.2rem] z-30 px-3 min-[740px]:bottom-3 min-[740px]:left-60 lg:left-[17rem] ${onOwnPage ? "xl:hidden" : "lg:bottom-4 lg:left-auto lg:right-4 lg:w-[26rem]"}`}>
           <div className="mx-auto flex max-w-lg items-center gap-2 rounded-full border border-line bg-surface p-2 pr-3 shadow-pop">
-            <button onClick={engine.toggle} aria-label={engine.playing ? "Pause" : "Play"} disabled={!engine.count} className="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-primary-fg disabled:opacity-50">
+            <button onClick={gated.toggle} aria-label={engine.playing ? "Pause" : "Play"} disabled={!engine.count} className="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-primary-fg disabled:opacity-50">
               {engine.loading && !engine.playing ? <Spinner className="size-5" /> : engine.playing ? <Pause className="size-5 fill-current" /> : <Play className="ml-0.5 size-5 fill-current" />}
             </button>
             <button onClick={go} className="min-w-0 flex-1 text-left" aria-label={onOwnPage ? "Open full player" : "Back to what you're reading"}>
@@ -244,7 +297,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         </div>
       )}
       <Sheet open={full} onClose={() => setFull(false)} title="Player">
-        <Player engine={engine} voice={voice} onVoice={setVoice} speed={speed} onSpeed={setSpeed} className="border-0 p-0 shadow-none" />
+        <Player engine={gated} voice={voice} onVoice={setVoice} speed={speed} onSpeed={setSpeed} className="border-0 p-0 shadow-none" />
         <button onClick={stop} className="mt-4 w-full rounded-full border border-line py-3 text-sm font-semibold text-muted hover:bg-surface2">Stop and close player</button>
       </Sheet>
     </C.Provider>

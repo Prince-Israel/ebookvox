@@ -56,7 +56,7 @@ export function GetTheApp() {
   if (native) return null;
   return (
     <section aria-labelledby="getapp" className="rounded-3xl border border-line bg-surface p-5 shadow-card sm:p-7">
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-start gap-4">
           <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent-fg"><Smartphone className="size-6" /></div>
           <div className="min-w-0">
@@ -64,7 +64,7 @@ export function GetTheApp() {
             <p className="mt-1 text-sm text-muted">Listen on the go — your library, progress and voices follow you. Keeps reading with the screen off.</p>
           </div>
         </div>
-        <StoreBadges className="sm:shrink-0" />
+        <StoreBadges className="lg:shrink-0" />
       </div>
     </section>
   );

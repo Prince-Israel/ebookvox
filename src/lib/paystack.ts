@@ -4,6 +4,7 @@ import { notify } from "./notify";
 import { formatMoney } from "./money";
 import { enqueue, flushOutbox } from "./outbox";
 import { emitEvent } from "./events";
+import { PLANS, activateSubscription, announceSubscription, isPlan } from "./subscription";
 
 const base = () => process.env.PAYSTACK_BASE_URL ?? "https://api.paystack.co";
 export const paystackConfigured = () => !!process.env.PAYSTACK_SECRET_KEY;
@@ -90,4 +91,56 @@ export async function settleOrder(reference: string): Promise<{ status: "PAID" |
     return { status: "FAILED", orderId: order.id, bookId: order.bookId, message: tx.gateway_response ?? "The payment was not completed." };
   }
   return { status: "PENDING", orderId: order.id, bookId: order.bookId, message: "Your payment is still being processed." };
+}
+
+
+export type PaymentResult = { status: "PAID" | "PENDING" | "FAILED"; kind: "ORDER" | "SUBSCRIPTION" | "TOPUP"; orderId?: string; bookId?: string; plan?: string; message?: string };
+
+/** Wallet top-ups and subscriptions paid by card. Same rules as orders: only Paystack's server decides, and amount + currency must match. Idempotent. */
+export async function settleCharge(reference: string): Promise<PaymentResult> {
+  const ch = await db.charge.findUnique({ where: { reference } });
+  if (!ch) return { status: "FAILED", kind: "TOPUP", message: "We couldn't find that payment." };
+  const kind = ch.kind as "SUBSCRIPTION" | "TOPUP";
+  const out = (status: PaymentResult["status"], message?: string): PaymentResult => ({ status, kind, plan: ch.plan ?? undefined, message });
+  if (ch.status === "PAID") return out("PAID");
+
+  const v = await verifyTransaction(reference);
+  if (!v.status && !v.data) return out("PENDING", "We couldn't reach the payment provider to confirm. Please check again shortly.");
+  const tx = v.data;
+
+  if (tx?.status === "success") {
+    if (tx.amount !== ch.amountMinor || tx.currency !== ch.currency) {
+      await db.charge.update({ where: { id: ch.id }, data: { status: "FAILED", failureReason: "Amount or currency mismatch" } });
+      console.error("[paystack] charge mismatch", { reference, got: [tx.amount, tx.currency], want: [ch.amountMinor, ch.currency] });
+      return out("FAILED", "The payment amount didn't match. Contact support if you were charged.");
+    }
+    let activated: Awaited<ReturnType<typeof activateSubscription>> | null = null;
+    const claimedNow = await db.$transaction(async (t) => {
+      const claimed = await t.charge.updateMany({ where: { id: ch.id, status: { not: "PAID" } }, data: { status: "PAID", paidAt: new Date(), paystackTxId: String(tx.id), channel: tx.channel ?? null, failureReason: null } });
+      if (claimed.count === 0) return false;
+      if (ch.kind === "TOPUP") {
+        await t.walletTx.create({ data: { userId: ch.userId, currency: ch.currency, type: "TOPUP", amountMinor: ch.amountMinor, description: "Wallet top-up by card", chargeId: ch.id } });
+      } else if (ch.kind === "SUBSCRIPTION" && isPlan(ch.plan)) {
+        activated = await activateSubscription(ch.userId, ch.plan, { method: "CARD", currency: ch.currency, amountMinor: ch.amountMinor, usdMinor: PLANS[ch.plan].usdMinor, reference: ch.reference }, t as typeof db);
+      }
+      return true;
+    });
+    if (claimedNow) {
+      if (ch.kind === "TOPUP") await notify(ch.userId, "ACCOUNT_UPDATE", "Wallet topped up", `${formatMoney(ch.amountMinor, ch.currency)} was added to your wallet.`, "/wallet");
+      else if (activated && isPlan(ch.plan)) { const a = activated as Awaited<ReturnType<typeof activateSubscription>>; await announceSubscription(ch.userId, ch.plan, { method: "CARD", currency: ch.currency, amountMinor: ch.amountMinor, usdMinor: PLANS[ch.plan].usdMinor, reference: ch.reference }, a.end, a.renewed); }
+    }
+    return out("PAID");
+  }
+  if (tx && ["failed", "abandoned", "reversed"].includes(tx.status)) {
+    await db.charge.updateMany({ where: { id: ch.id, status: "PENDING" }, data: { status: "FAILED", failureReason: tx.gateway_response ?? tx.status } });
+    return out("FAILED", tx.gateway_response ?? "The payment was not completed.");
+  }
+  return out("PENDING", "Your payment is still being processed.");
+}
+
+/** One entry point for the callback page and the webhook: book orders and card charges share Paystack's references. */
+export async function settlePayment(reference: string): Promise<PaymentResult> {
+  const order = await db.order.findUnique({ where: { reference }, select: { id: true } });
+  if (order) return { ...(await settleOrder(reference)), kind: "ORDER" };
+  return settleCharge(reference);
 }

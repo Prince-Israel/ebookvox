@@ -241,6 +241,56 @@ on("POST", "tickets/:id/status", async ({ p, body }) => {
   return { id: t.id, status };
 });
 
+
+// ---- subscriptions (ad-free plan) ----
+const subRow = (sub: any, extra: object = {}) => {
+  const live = sub.status === "ACTIVE" && new Date(sub.currentPeriodEnd) > new Date();
+  return {
+    id: sub.id, userId: sub.userId, name: `${sub.user.firstName} ${sub.user.lastName}`.trim(), email: sub.user.email, country: sub.user.country, currency: sub.user.currency,
+    plan: sub.plan, status: live ? "ACTIVE" : "EXPIRED", startedAt: sub.startedAt, currentPeriodEnd: sub.currentPeriodEnd, autoRenew: sub.autoRenew, ...extra,
+  };
+};
+on("GET", "subscriptions", async ({ q }) => {
+  const s = q.get("q")?.trim(), st = q.get("status"), plan = q.get("plan");
+  const now = new Date();
+  const where: any = {
+    ...(st === "ACTIVE" ? { status: "ACTIVE", currentPeriodEnd: { gt: now } } : st === "EXPIRED" ? { OR: [{ status: "EXPIRED" }, { currentPeriodEnd: { lte: now } }] } : {}),
+    ...(plan ? { plan } : {}),
+    ...(s ? { user: { OR: [{ email: { contains: s } }, { firstName: { contains: s } }, { lastName: { contains: s } }] } } : {}),
+  };
+  const [rows, total, active, byPlan, revenue] = await Promise.all([
+    db.subscription.findMany({ where, include: { user: true, payments: { orderBy: { createdAt: "desc" } } }, orderBy: { currentPeriodEnd: "desc" }, ...page(q) }),
+    db.subscription.count({ where }),
+    db.subscription.findMany({ where: { status: "ACTIVE", currentPeriodEnd: { gt: now } }, select: { plan: true } }),
+    db.subscription.count(),
+    db.subscriptionPayment.groupBy({ by: ["currency"], _sum: { amountMinor: true, usdMinor: true }, _count: true }),
+  ]);
+  const monthlyUsd = active.reduce((n, a) => n + (a.plan === "YEARLY" ? 180 : 200), 0); // dollars-equivalent per month, in cents
+  return {
+    total,
+    subscribers: rows.map((r) => {
+      const paid: Record<string, number> = {};
+      for (const p of r.payments) paid[p.currency] = (paid[p.currency] ?? 0) + p.amountMinor;
+      const last = r.payments[0];
+      return subRow(r, { payments: r.payments.length, paid, lastPayment: last ? { method: last.method, amountMinor: last.amountMinor, currency: last.currency, at: last.createdAt } : null });
+    }),
+    totals: { activeCount: active.length, activeMonthly: active.filter((a) => a.plan === "MONTHLY").length, activeYearly: active.filter((a) => a.plan === "YEARLY").length, everSubscribed: byPlan, monthlyRecurringUsdMinor: monthlyUsd, revenue: revenue.map((r) => ({ currency: r.currency, amountMinor: r._sum.amountMinor ?? 0, usdMinor: r._sum.usdMinor ?? 0, payments: r._count })) },
+  };
+});
+on("GET", "subscriptions/:id", async ({ p }) => {
+  const sub = await db.subscription.findUnique({ where: { id: p[0] }, include: { user: true, payments: { orderBy: { createdAt: "desc" } } } });
+  if (!sub) throw new ApiError(404, "Subscriber not found.");
+  const [bal, tx] = await Promise.all([
+    db.walletTx.groupBy({ by: ["currency"], where: { userId: sub.userId }, _sum: { amountMinor: true } }),
+    db.walletTx.findMany({ where: { userId: sub.userId }, orderBy: { createdAt: "desc" }, take: 20 }),
+  ]);
+  return {
+    subscriber: subRow(sub, { phone: sub.user.phone, joined: sub.user.createdAt, userStatus: sub.user.status, emailVerified: !!sub.user.emailVerifiedAt }),
+    payments: sub.payments.map((x) => ({ id: x.id, plan: x.plan, amountMinor: x.amountMinor, currency: x.currency, usdMinor: x.usdMinor, method: x.method, reference: x.reference, periodStart: x.periodStart, periodEnd: x.periodEnd, at: x.createdAt })),
+    wallet: { balances: bal.map((b) => ({ currency: b.currency, amountMinor: b._sum.amountMinor ?? 0 })), recent: tx.map((t) => ({ id: t.id, type: t.type, currency: t.currency, amountMinor: t.amountMinor, description: t.description, at: t.createdAt })) },
+  };
+});
+
 // ---- feed, search, config ----
 on("GET", "events", async ({ q }) => {
   const after = Number(q.get("after") ?? 0);

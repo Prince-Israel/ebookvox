@@ -298,7 +298,7 @@ async function main() {
   await p.getByRole("button", { name: /Switch to dark mode/ }).click();
   await p.waitForFunction(() => document.documentElement.dataset.theme === "dark");
   ok(true, "dark mode applies");
-  const routes = ["/dashboard", "/users", "/publishers", "/authors", "/books", "/publisher-books", "/book-review", "/orders", "/transactions", "/sales", "/payouts", "/support", "/admins", "/activity", "/notifications", "/settings"];
+  const routes = ["/dashboard", "/users", "/subscribers", "/publishers", "/authors", "/books", "/publisher-books", "/book-review", "/orders", "/transactions", "/sales", "/payouts", "/support", "/admins", "/activity", "/notifications", "/settings"];
   for (const route of routes) {
     await p.goto(BASE + route);
     await p.waitForLoadState("networkidle");

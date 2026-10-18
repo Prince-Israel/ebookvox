@@ -73,7 +73,7 @@ export function useAudioEngine(opts: Opts) {
           throw new ApiFailure("We couldn't reach the voice service. Check your connection and try again.");
         }
         if (res.status === 401) {
-          window.location.href = "/sign-in?expired=1";
+          if (!(window as unknown as { __signingOut?: boolean }).__signingOut) window.location.href = "/sign-in?expired=1";
           throw new ApiFailure("Your session has expired.");
         }
         if (!res.ok) throw new ApiFailure((await res.json().catch(() => null))?.error ?? "We couldn't generate audio for this passage. Please try again.");

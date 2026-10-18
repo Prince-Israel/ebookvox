@@ -4,11 +4,13 @@ android {
     namespace "app.ebookvox.reader"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
+        // AdMob app id: Google's test id unless ADMOB_ANDROID_APP_ID is set (gradle property or environment variable)
+        manifestPlaceholders = [admobAppId: (project.findProperty("ADMOB_ANDROID_APP_ID") ?: System.getenv("ADMOB_ANDROID_APP_ID") ?: "ca-app-pub-3940256099942544~3347511713")]
         applicationId "app.ebookvox.reader"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 7
-        versionName "1.4.0"
+        versionCode 8
+        versionName "1.5.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

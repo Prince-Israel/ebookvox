@@ -10,6 +10,8 @@ IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null |
 URL="${EBOOKVOX_URL:-http://$IP:3230}"
 [ -n "$IP" ] || [ -n "${EBOOKVOX_URL:-}" ] || { echo "No network address found — connect to Wi-Fi first."; exit 1; }
 VER="$(grep -o 'versionName "[^"]*"' android/app/build.gradle | cut -d'"' -f2)"; BUILD="$(grep -o 'versionCode [0-9]*' android/app/build.gradle | cut -d' ' -f2)"
+# AdMob app ids (your own, from admob.google.com); Google's test ids are used when not set
+[ -n "${ADMOB_IOS_APP_ID:-}" ] && /usr/libexec/PlistBuddy -c "Set :GADApplicationIdentifier $ADMOB_IOS_APP_ID" ios/App/App/Info.plist
 echo "Building Ebookvox $VER (build $BUILD) for $URL"
 mkdir -p downloads
 # --- Android

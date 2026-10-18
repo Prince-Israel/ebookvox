@@ -362,6 +362,21 @@ async function main() {
   ok(tx2.length === 2 && tx2.every((t: any) => t.kind === "PAYOUT"), "payouts appear in Transactions");
   ok((await S.get("/api/notifications")).data.notifications.some((n: any) => n.type === "NEW_PAYOUT_REQUEST"), "payout-request notification");
 
+  // ============================================================== SUBSCRIBERS
+  section("Subscribers (ad-free plan)");
+  const topRef = (await rNG.c.post("/api/wallet/topup", { amountMinor: 20_000_000 })).data.reference;
+  await fetch(`${MOCK}/__set/${topRef}/success`); await rNG.c.get(`/api/checkout/verify?reference=${topRef}`);
+  const subr = await rNG.c.post("/api/subscription/subscribe", { plan: "YEARLY", method: "wallet" });
+  ok(subr.status === 200 && subr.data.status === "PAID", "a reader tops up their wallet and subscribes (yearly)", subr.data);
+  const subs = await until(async () => { const r = (await S.get("/api/subscribers")).data; return r.subscribers.length ? r : false; });
+  const sr = subs?.subscribers.find((x: any) => x.email === rNG.email);
+  ok(!!sr && sr.name.includes("Rita") && sr.plan === "YEARLY" && sr.status === "ACTIVE" && sr.country === "NG" && sr.lastPayment?.method === "WALLET" && Object.values(sr.paid)[0] as number > 0 && sr.payments === 1, "Admin lists the subscriber: name, email, plan, status, last payment method and total paid", sr);
+  ok(subs.totals.activeCount >= 1 && subs.totals.activeYearly >= 1 && subs.totals.monthlyRecurringUsdMinor >= 180 && subs.totals.revenue.some((r: any) => r.currency === "NGN" && r.usdMinor === 2160), "subscriber totals: active count, monthly recurring revenue ($1.80 per yearly subscriber), money collected", subs.totals);
+  const sd = (await S.get(`/api/subscribers/${sr.id}`)).data;
+  ok(sd.subscriber.email === rNG.email && sd.payments.length === 1 && sd.payments[0].usdMinor === 2160 && sd.payments[0].method === "WALLET" && sd.payments[0].reference.startsWith("SUBW-") && sd.wallet.balances[0].currency === "NGN" && sd.wallet.recent.some((t: any) => t.type === "SUBSCRIPTION"), "subscriber detail shows every payment (amount, dollar price, method, reference, period) and the wallet", sd);
+  ok((await S.get("/api/subscribers?status=EXPIRED")).data.subscribers.every((x: any) => x.email !== rNG.email) && (await S.get("/api/subscribers?plan=MONTHLY")).data.subscribers.every((x: any) => x.email !== rNG.email) && (await S.get(`/api/subscribers?q=${encodeURIComponent(rNG.email)}`)).data.total === 1, "status / plan / search filters work");
+  ok(!!(await until(async () => (await S.get("/api/notifications")).data.notifications.some((n: any) => n.type === "NEW_SUBSCRIBER" && n.body.includes(rNG.email)))), "admins get a “New subscriber” notification");
+
   // ============================================================== SUPPORT
   section("Support (Reader + Publisher)");
   const tR = await rNG.c.post("/api/tickets", { subject: "Book won't open", message: "My purchased book shows a blank page." });
@@ -458,7 +473,7 @@ async function main() {
   const denied = async (c: Client, paths: string[], label: string) => { const bad: string[] = []; for (const p of paths) { const r = await c.get(p); if (r.status !== 403) bad.push(`${p}:${r.status}`); } ok(bad.length === 0, label, bad); };
   const someAtt = (await S.get(`/api/support/reader/${tPhotoR.data.ticket.id}`)).data.ticket.messages[0].attachments[0];
   ok((await FIN.get(someAtt.url)).status === 403, "an admin without the support permission can't open customer photos");
-  await denied(FIN, ["/api/support/unread", "/api/users", "/api/publishers", "/api/authors", "/api/books", "/api/book-review", "/api/support", "/api/activity", "/api/admins", `/api/users/${rNG.id}`, "/api/publisher-books"], "finance is blocked server-side from users, publishers, books, review, support, activity and admins");
+  await denied(FIN, ["/api/subscribers", "/api/support/unread", "/api/users", "/api/publishers", "/api/authors", "/api/books", "/api/book-review", "/api/support", "/api/activity", "/api/admins", `/api/users/${rNG.id}`, "/api/publisher-books"], "finance is blocked server-side from users, publishers, books, review, support, activity and admins");
   ok((await FIN.post(`/api/book-review/${bookC.id}/decision`, { action: "approve" })).status === 403 && (await FIN.del("/api/activity")).status === 403 && (await FIN.put("/api/settings/categories", { categories: ["X"] })).status === 403, "finance can't approve books, clear logs or change settings");
   const finDash = (await FIN.get("/api/dashboard")).data;
   ok(finDash.allowed.revenue && finDash.allowed.orders && finDash.reader.ok, "finance dashboard exposes revenue and orders");

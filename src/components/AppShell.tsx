@@ -2,11 +2,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, BookOpen, Home, Library, LifeBuoy, Receipt, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { Bell, BookOpen, Crown, Home, Library, LifeBuoy, Receipt, Settings, ShieldCheck, UserRound, Wallet } from "lucide-react";
 import { Logo } from "./Logo";
 import { Avatar } from "./Avatar";
 import { Banner, Button, cx, useToast } from "./ui";
 import { useAuth } from "./UserContext";
+import { TopAdBand } from "./NativeBanners";
+import { useIsNative } from "@/lib/public-config";
 import { api, ApiFailure } from "@/lib/client";
 
 const MAIN = [
@@ -17,6 +19,7 @@ const MAIN = [
 ] as const;
 
 const MORE = [
+  { href: "/wallet", label: "Wallet", Icon: Wallet },
   { href: "/orders", label: "Orders", Icon: Receipt },
   { href: "/support", label: "Support", Icon: LifeBuoy },
   { href: "/settings", label: "Settings", Icon: Settings },
@@ -29,9 +32,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const toast = useToast();
   const [sending, setSending] = useState(false);
   const guest = !user;
-  const isPublic = path === "/home" || path === "/books" || /^\/books\/[^/]+$/.test(path);
+  const isPublic = path === "/home" || path === "/books" || path === "/subscribe" || /^\/books\/[^/]+$/.test(path);
   const active = (h: string) => path === h || path.startsWith(h + "/");
   const reading = path.startsWith("/read/");
+  const native = useIsNative();
+  const adTop = native && !user?.adFree && path === "/home"; // the header banner's band sits above the header, which then needs no status-bar padding of its own
 
   // Visitors may browse Home and Books; every other screen sends them to sign in and brings them back afterwards.
   useEffect(() => {
@@ -70,9 +75,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[17rem_1fr]">
+    <div className="min-h-dvh min-[740px]:grid min-[740px]:grid-cols-[15rem_1fr] lg:grid-cols-[17rem_1fr]">
       {/* desktop sidebar */}
-      <aside className="sticky top-0 hidden h-dvh flex-col border-r border-line bg-surface/70 p-5 lg:flex">
+      <aside className="sticky top-0 hidden h-dvh flex-col overflow-y-auto border-r border-line bg-surface/70 p-4 min-[740px]:flex lg:p-5">
         <Link href="/home" className="mb-8 px-2"><Logo size={38} tagline /></Link>
         <nav className="flex flex-1 flex-col gap-1" aria-label="Main">
           {[...MAIN, ...(guest ? [] : MORE)].map(({ href, label, Icon }, i) => (
@@ -84,6 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             </div>
           ))}
+          <Link href="/subscribe" className={cx("mt-1 flex h-12 items-center gap-3 rounded-2xl px-4 font-medium transition", active("/subscribe") ? "bg-accent-soft text-accent-fg" : "text-fg hover:bg-surface2")}><Crown className="size-5 text-accent" /> <span className="flex-1">{user?.adFree ? "Subscription" : "Go ad-free"}</span>{user?.adFree && <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-bold uppercase text-success">Active</span>}</Link>
           {user?.role === "ADMIN" && (
             <Link href="/admin" className={cx("mt-1 flex h-12 items-center gap-3 rounded-2xl px-4 font-medium hover:bg-surface2", active("/admin") && "bg-accent-soft text-accent-fg")}><ShieldCheck className="size-5" /> Admin</Link>
           )}
@@ -103,11 +109,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        <header className="safe-t sticky top-0 z-30 flex items-center justify-between border-b border-line bg-bg/90 px-4 py-2 backdrop-blur lg:justify-end lg:px-8">
-          <Link href="/home" className="lg:hidden"><Logo size={32} /></Link>
+        <TopAdBand active={path === "/home"} />
+        <header className={cx(adTop ? "" : "safe-t", "sticky top-0 z-30 flex items-center justify-between border-b border-line bg-bg/90 px-4 py-2 backdrop-blur min-[740px]:justify-end min-[740px]:px-8")}>
+          <Link href="/home" className="min-[740px]:hidden"><Logo size={32} /></Link>
           {bell}
         </header>
-        <main className={cx("mx-auto w-full min-w-0 max-w-5xl flex-1 px-4 pt-6 sm:px-6 lg:px-8", reading ? "pb-40 lg:pb-10" : "pb-28 lg:pb-12")}>
+        <main className={cx("mx-auto w-full min-w-0 max-w-5xl flex-1 px-4 pt-6 sm:px-6 lg:px-8", reading ? "pb-40 lg:pb-10" : "pb-28 min-[740px]:pb-24 lg:pb-12")}>
           {user && !user.emailVerified && (
             <div className="mb-5">
               <Banner tone="warn" action={<Button size="sm" variant="secondary" loading={sending} onClick={resend}>Resend email</Button>}>
@@ -120,7 +127,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* mobile bottom nav */}
-      <nav aria-label="Main" data-hide-on-kb className="safe-b fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur lg:hidden">
+      <nav aria-label="Main" data-hide-on-kb style={{ bottom: "var(--ad-bottom, 0px)" }} className="safe-b fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur min-[740px]:hidden">
         <ul className="mx-auto grid max-w-lg grid-cols-4">
           {MAIN.map(({ href, label, Icon }) => (
             <li key={href}>

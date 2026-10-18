@@ -428,9 +428,10 @@ async function main() {
   // ---------------------------------------------------------------- public links, store badges, mobile sign-in
   section("Public config, ads.txt, mobile Google/Apple sign-in");
   const cfg = (await new Client().get("/api/public-config")).data;
-  ok(/\/sign-up$/.test(cfg.publisherSignUpUrl) && cfg.publisherSignUpUrl.startsWith(cfg.publisherUrl) && typeof cfg.apkUrl === "string" && cfg.playStoreUrl === null && cfg.appStoreUrl === null && cfg.adsense === null, "public config gives the Publisher sign-up link and store links, and no ads until AdSense is configured", cfg);
+  ok(/\/sign-up$/.test(cfg.publisherSignUpUrl) && cfg.publisherSignUpUrl.startsWith(cfg.publisherUrl) && typeof cfg.apkUrl === "string" && cfg.playStoreUrl === null && cfg.appStoreUrl === null && cfg.ads.adsense?.client === "ca-pub-1234567890123456" && cfg.ads.adsense.slots.homeTop === "1111111111" && cfg.ads.adsense.slots.homeBottom === "2222222222" && cfg.ads.videoTagUrl === "https://ads.example.test/vast.xml" && cfg.ads.admob.testing === true && cfg.ads.admob.android.banner.startsWith("ca-app-pub-3940256099942544"), "public config gives the Publisher sign-up link, store links, the AdSense/video ad settings, and Google's TEST AdMob ids until real ones are set", cfg);
   ok(!JSON.stringify(cfg).match(/secret|password|key/i), "public config contains no secrets");
-  ok((await fetch(BASE + "/ads.txt")).status === 404, "ads.txt is absent until ADSENSE_CLIENT is set");
+  const adsTxt = await fetch(BASE + "/ads.txt");
+  ok(adsTxt.status === 200 && (await adsTxt.text()).trim() === "google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0", "ads.txt is served for AdSense once ADSENSE_CLIENT is set");
   // geo: where the visitor is comes from CDN/IP first; with no usable address (private network) the device's time zone is used
   const geoFetch = async (path: string, headers: Record<string, string>) => (await fetch(BASE + path, { headers })).json();
   const gLondon = await geoFetch("/api/geo", { cookie: "ev-tz=Europe%2FLondon" });
@@ -459,6 +460,87 @@ async function main() {
   ok((await new Client().post("/api/auth/oauth/mobile/exchange", { code: await mkCode("MOBILE_LOGIN", 200_000) })).status === 400, "an expired code is refused");
   ok((await new Client().post("/api/auth/oauth/mobile/exchange", { code: await mkCode("VERIFY_EMAIL") })).status === 400, "other kinds of token can't be used to sign in");
   ok((await new Client().post("/api/auth/oauth/mobile/exchange", { code: "x".repeat(40) })).status === 400, "a made-up code is refused");
+
+  // ---------------------------------------------------------------- wallet + ad-free subscription
+  section("Wallet, subscription ($2/month, $1.80/month yearly), ads off");
+  const gPlans = await new Client("US").get("/api/subscription");
+  const usM = gPlans.data.plans.find((x: any) => x.plan === "MONTHLY"), usY = gPlans.data.plans.find((x: any) => x.plan === "YEARLY");
+  ok(gPlans.data.currency === "USD" && usM.amountMinor === 200 && usM.perMonthMinor === 200 && usY.amountMinor === 2160 && usY.perMonthMinor === 180, "US visitors see $2.00 a month, and $1.80 a month ($21.60) on the yearly plan", gPlans.data.plans);
+  const ngPlans = (await u.get("/api/subscription")).data;
+  const ngM = ngPlans.plans.find((x: any) => x.plan === "MONTHLY"), ngY = ngPlans.plans.find((x: any) => x.plan === "YEARLY");
+  ok(ngPlans.currency === "NGN" && ngM.amountMinor > 100_000 && ngY.perMonthMinor < ngM.amountMinor && Math.abs(ngY.amountMinor / ngM.amountMinor - 10.8) < 0.15, "in Nigeria the same dollar prices are converted to naira at the international rate (yearly = 10.8 × monthly)", { ngM: ngM.amountMinor, ngY: ngY.amountMinor });
+  const eurPlans = (await new Client("DE").get("/api/subscription")).data;
+  ok(eurPlans.currency === "EUR" && eurPlans.plans[0].amountMinor > 100 && eurPlans.plans[0].amountMinor < 400, "German visitors see euro prices");
+  ok((await new Client().post("/api/subscription/subscribe", { plan: "MONTHLY", method: "wallet" })).status === 401, "subscribing needs an account");
+  ok((await new Client().get("/api/wallet")).status === 401, "the wallet needs an account");
+  ok((await u.post("/api/subscription/subscribe", { plan: "WEEKLY", method: "wallet" })).status === 400, "unknown plans are refused");
+  // wallet starts empty → cannot pay from it
+  const poor = await u.post("/api/subscription/subscribe", { plan: "MONTHLY", method: "wallet" });
+  ok(poor.status === 402 && /top up/i.test(poor.data.error), "an empty wallet can't pay for a subscription", poor.data);
+  // top up by card (verified server-side like orders)
+  const tooSmall = await u.post("/api/wallet/topup", { amountMinor: 100 });
+  ok(tooSmall.status === 400, "top-ups below the minimum are refused", tooSmall.data);
+  const top = await u.post("/api/wallet/topup", { amountMinor: 8_000_000 }); // ₦80,000
+  ok(top.status === 200 && top.data.authorizationUrl?.startsWith(MOCK) && top.data.currency === "NGN", "wallet top-up starts a Paystack payment in the reader's currency", top.data);
+  ok((await u.get(`/api/checkout/verify?reference=${top.data.reference}`)).data.status === "PENDING", "a top-up isn't credited until Paystack confirms");
+  ok((await u.get("/api/wallet")).data.balances.length === 0, "wallet still empty while pending");
+  await mock(top.data.reference, "success", 1000); // paid the wrong amount
+  const wrong = (await u.get(`/api/checkout/verify?reference=${top.data.reference}`)).data;
+  ok(wrong.status === "FAILED" && (await u.get("/api/wallet")).data.balances.length === 0, "an amount mismatch is rejected and nothing is credited");
+  const top2 = await u.post("/api/wallet/topup", { amountMinor: 8_000_000 });
+  await mock(top2.data.reference, "success");
+  const paidTop = (await u.get(`/api/checkout/verify?reference=${top2.data.reference}`)).data;
+  await u.get(`/api/checkout/verify?reference=${top2.data.reference}`); await u.get(`/api/checkout/verify?reference=${top2.data.reference}`);
+  const w1 = (await u.get("/api/wallet")).data;
+  ok(paidTop.status === "PAID" && paidTop.kind === "TOPUP" && w1.balances[0]?.amountMinor === 8_000_000 && w1.transactions.filter((t: any) => t.type === "TOPUP").length === 1, "a confirmed top-up credits the wallet exactly once (repeat checks don't double-credit)", w1);
+  ok((await u.get("/api/me")).data.user.adFree === false, "no subscription yet → ads are on");
+  // subscribe from the wallet
+  const sw = await u.post("/api/subscription/subscribe", { plan: "MONTHLY", method: "wallet" });
+  const afterSub = (await u.get("/api/subscription")).data;
+  ok(sw.status === 200 && sw.data.status === "PAID" && afterSub.adFree === true && afterSub.subscription.plan === "MONTHLY" && afterSub.walletMinor === 8_000_000 - ngM.amountMinor, "subscribing from the wallet is instant, debits the exact price, and switches ads off", { sw: sw.data, afterSub: afterSub.walletMinor });
+  ok((await u.get("/api/me")).data.user.adFree === true, "the signed-in user is marked ad-free (web and app read the same flag)");
+  const end1 = new Date(afterSub.subscription.currentPeriodEnd).getTime();
+  ok(Math.abs(end1 - (Date.now() + 30 * 86400_000)) < 3 * 86400_000, "a monthly plan lasts about a month");
+  await u.post("/api/subscription/subscribe", { plan: "YEARLY", method: "wallet" });
+  const end2 = new Date((await u.get("/api/subscription")).data.subscription.currentPeriodEnd).getTime();
+  ok(end2 - end1 > 360 * 86400_000 && end2 - end1 < 370 * 86400_000, "subscribing again adds the new period on top of the time left (no days wasted)");
+  const meRow = await db.user.findFirst({ where: { email } });
+  const payRows = await db.subscriptionPayment.findMany({ where: { userId: meRow!.id }, orderBy: { createdAt: "asc" } });
+  ok(payRows.length === 2 && payRows[0].usdMinor === 200 && payRows[1].usdMinor === 2160 && payRows.every((r) => r.method === "WALLET" && r.currency === "NGN"), "every payment is recorded with its dollar price, method and currency");
+  ok((await u.get("/api/wallet")).data.transactions.filter((t: any) => t.type === "SUBSCRIPTION").length === 2, "wallet history shows both subscription charges");
+  ok((await u.get("/api/notifications")).data.notifications.some((n: any) => /ad-free|Ads are off/i.test(n.title)), "the reader is told ads are off");
+  // two quick taps can't spend the same money twice
+  const rich = new Client("NG"); await signup(rich, "walletrace", "NG");
+  const richU = await db.user.findFirst({ where: { email: `walletrace.${stamp}@example.com` } });
+  await db.walletTx.create({ data: { userId: richU!.id, currency: "NGN", type: "ADJUSTMENT", amountMinor: ngM.amountMinor + 100, description: "test credit" } });
+  const [race1, race2] = await Promise.all([rich.post("/api/subscription/subscribe", { plan: "MONTHLY", method: "wallet" }), rich.post("/api/subscription/subscribe", { plan: "MONTHLY", method: "wallet" })]);
+  ok([race1.status, race2.status].sort().join() === "200,402" && (await db.subscriptionPayment.count({ where: { userId: richU!.id } })) === 1 && (await rich.get("/api/wallet")).data.balances[0].amountMinor === 100, "two simultaneous wallet payments → only one succeeds, the wallet never goes negative", [race1.status, race2.status]);
+  // card flow
+  await db.user.updateMany({ where: { email: `walletrace.${stamp}@example.com` }, data: { emailVerifiedAt: null } });
+  ok((await rich.post("/api/subscription/subscribe", { plan: "YEARLY", method: "card" })).status === 403, "paying by card needs a verified email");
+  await db.user.updateMany({ where: { email: `walletrace.${stamp}@example.com` }, data: { emailVerifiedAt: new Date() } });
+  const card = await rich.post("/api/subscription/subscribe", { plan: "YEARLY", method: "card" });
+  ok(card.status === 200 && card.data.status === "REDIRECT" && card.data.authorizationUrl.startsWith(MOCK), "card subscription starts a Paystack checkout", card.data);
+  await mock(card.data.reference, "failed");
+  const cf = (await rich.get(`/api/checkout/verify?reference=${card.data.reference}`)).data;
+  ok(cf.status === "FAILED" && cf.kind === "SUBSCRIPTION" && (await rich.get("/api/subscription")).data.subscription.plan === "MONTHLY", "a failed card payment changes nothing");
+  const card2 = await rich.post("/api/subscription/subscribe", { plan: "YEARLY", method: "card" });
+  await mock(card2.data.reference, "success");
+  const cok = (await rich.get(`/api/checkout/verify?reference=${card2.data.reference}`)).data;
+  const richSub = (await rich.get("/api/subscription")).data;
+  ok(cok.status === "PAID" && cok.kind === "SUBSCRIPTION" && richSub.subscription.plan === "YEARLY" && richSub.payments.length === 2, "a confirmed card payment activates the plan and is recorded");
+  ok((await u.get(`/api/checkout/verify?reference=${card2.data.reference}`)).status === 404, "one reader can't look at another's payment");
+  // auto-renew from wallet + expiry
+  ok((await rich.post("/api/subscription/auto-renew", { enabled: true })).data.autoRenew === true, "wallet auto-renew can be switched on");
+  const subRow = await db.subscription.findFirst({ where: { userId: richU!.id, status: "ACTIVE" } });
+  await db.subscription.update({ where: { id: subRow!.id }, data: { currentPeriodEnd: new Date(Date.now() - 1000) } });
+  const lapsed = (await rich.get("/api/subscription")).data;
+  ok(lapsed.adFree === false && (await db.subscription.findUnique({ where: { id: subRow!.id } }))!.status === "EXPIRED", "with no funds to renew, a lapsed subscription ends and ads come back");
+  const gb2 = await db.subscription.create({ data: { userId: richU!.id, plan: "MONTHLY", currentPeriodEnd: new Date(Date.now() - 1000), autoRenew: true } });
+  await db.subscriptionPayment.create({ data: { subscriptionId: gb2.id, userId: richU!.id, plan: "MONTHLY", amountMinor: ngM.amountMinor, currency: "NGN", usdMinor: 200, method: "WALLET", reference: `seed-${stamp}`, periodStart: new Date(Date.now() - 30 * 86400_000), periodEnd: new Date(Date.now() - 1000) } });
+  await db.walletTx.create({ data: { userId: richU!.id, currency: "NGN", type: "TOPUP", amountMinor: ngM.amountMinor * 2, description: "test" } });
+  const renewed = (await rich.get("/api/subscription")).data;
+  ok(renewed.adFree === true && renewed.subscription.plan === "MONTHLY", "with wallet funds and auto-renew on, the subscription renews itself");
 
   // ---------------------------------------------------------------- security
   section("Security");
