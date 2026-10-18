@@ -8,7 +8,7 @@
 
 ## Which version do I have?
 
-`VERSION.txt` lists the current build (**Android 1.3.1 build 6, iPhone 1.3.0 build 5**). The installed app shows the same at the bottom of **Profile**. Each new APK has a higher build number, so
+`VERSION.txt` lists the current build (**1.4.0, build 7**). The installed app shows the same at the bottom of **Profile**. Each new APK has a higher build number, so
 installing it over an older one updates it (if Android refuses with "App not installed", uninstall the old Ebookvox first).
 
 ## Where the app gets its content

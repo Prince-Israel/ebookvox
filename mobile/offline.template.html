@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Ebookvox — Connect to internet</title>
+<style>
+  :root{--bg:#fbf5ec;--fg:#2a1d16;--muted:#7a6558;--accent:#ee8a5a;--btn:#6b4a3a;--btnfg:#fff;--card:#fff;--line:#eadfce}
+  @media (prefers-color-scheme: dark){:root{--bg:#17110e;--fg:#f6ece0;--muted:#b8a595;--btn:#ee8a5a;--btnfg:#2a1d16;--card:#241a15;--line:#3a2b22}}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);-webkit-text-size-adjust:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;display:flex;align-items:center;justify-content:center;padding:max(24px,env(safe-area-inset-top)) 24px max(24px,env(safe-area-inset-bottom))}
+  main{width:100%;max-width:26rem;text-align:center}
+  .brand{display:inline-flex;align-items:center;gap:12px;margin-bottom:2.2rem}
+  .brand svg{width:56px;height:56px;display:block}
+  .word{font-family:Georgia,"Times New Roman",serif;font-size:2rem;font-weight:600;letter-spacing:-.01em}
+  .word b{color:var(--accent);font-weight:600}
+  .badge{width:92px;height:92px;margin:0 auto 1.4rem;border-radius:50%;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;box-shadow:0 8px 28px rgba(60,35,20,.10)}
+  .badge svg{width:44px;height:44px;stroke:var(--accent)}
+  h1{font-family:Georgia,"Times New Roman",serif;font-size:2rem;line-height:1.15;margin:0 0 .6rem;font-weight:600}
+  p{margin:0 auto 1.6rem;color:var(--muted);font-size:1.02rem;line-height:1.5;max-width:22rem}
+  button{appearance:none;border:0;cursor:pointer;width:100%;max-width:20rem;min-height:56px;border-radius:999px;background:var(--btn);color:var(--btnfg);font:600 1.08rem/1 inherit;font-family:inherit;box-shadow:0 6px 18px rgba(60,35,20,.18);transition:transform .08s}
+  button:active{transform:scale(.98)}
+  button[disabled]{opacity:.7}
+  .tag{margin-top:2rem;font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+  .addr{margin-top:.9rem;font-size:.72rem;color:var(--muted);opacity:.75;word-break:break-all}
+  .dot{display:inline-block;width:.8rem;height:.8rem;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;margin-right:.55rem;vertical-align:-.1rem;animation:s .8s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<main role="main">
+  <div class="brand" aria-label="Ebookvox">
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a5a44"/><stop offset="1" stop-color="#3f2a1f"/></linearGradient></defs>
+      <rect width="64" height="64" rx="16" fill="url(#g)"/>
+      <g stroke="#f6a67a" stroke-width="3.2" stroke-linecap="round"><line x1="20" y1="19" x2="20" y2="23"/><line x1="26" y1="14" x2="26" y2="26"/><line x1="32" y1="9" x2="32" y2="28"/><line x1="38" y1="14" x2="38" y2="26"/><line x1="44" y1="19" x2="44" y2="23"/></g>
+      <path d="M32 54c-6-4-15-5-23-3V31c8-2 17-1 23 3z" fill="#fbf1e4"/>
+      <path d="M32 54c6-4 15-5 23-3V31c-8-2-17-1-23 3z" fill="#f3dfc9"/>
+      <path d="M32 34v20" stroke="#6b4a3a" stroke-width="1.4" stroke-linecap="round"/>
+    </svg>
+    <span class="word">Ebook<b>vox</b></span>
+  </div>
+  <div class="badge" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5.4 12.4a10 10 0 0 1 13.2 0"/><path d="M8.8 16a5 5 0 0 1 6.4 0"/><circle cx="12" cy="19.4" r="0.6" fill="currentColor"/><path d="M3 3l18 18"/></svg>
+  </div>
+  <h1>Connect to internet</h1>
+  <p id="msg">Ebookvox needs an internet connection to load your library and read to you. Check your Wi‑Fi or mobile data, then try again.</p>
+  <button id="retry" type="button">Try again</button>
+  <div class="tag">Your Words. Our Voice.</div>
+  <div class="addr" id="addr"></div>
+</main>
+<script>
+(function () {
+  var APP_URL = "__APP_URL__";
+  var btn = document.getElementById("retry"), msg = document.getElementById("msg");
+  document.getElementById("addr").textContent = APP_URL.replace(/^https?:\/\//, "");
+  // this page is shown instead of "Webpage not available": make sure the splash screen is gone
+  try { var C = window.Capacitor; if (C && C.Plugins && C.Plugins.SplashScreen) C.Plugins.SplashScreen.hide(); } catch (e) {}
+  var busy = false;
+  function go(manual) {
+    if (busy) return; busy = true;
+    btn.disabled = true; btn.innerHTML = '<span class="dot"></span>Connecting…';
+    if (manual) msg.textContent = "Trying to reach Ebookvox…";
+    // if it fails, the app brings us straight back here
+    setTimeout(function () { location.replace(APP_URL); }, 250);
+    setTimeout(function () { busy = false; btn.disabled = false; btn.textContent = "Try again"; msg.textContent = "Still can't connect. Check your Wi‑Fi or mobile data, then try again."; }, 9000);
+  }
+  btn.addEventListener("click", function () { go(true); });
+  window.addEventListener("online", function () { go(false); });
+  setInterval(function () { if (navigator.onLine && !busy) go(false); }, 30000);
+})();
+</script>
+</body>
+</html>

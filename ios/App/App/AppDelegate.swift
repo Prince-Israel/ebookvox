@@ -51,3 +51,34 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
 }
+
+
+/// The app's main screen: Capacitor's bridge view controller plus a watchdog. A page that never answers (server off, wrong network)
+/// would otherwise leave a blank white screen for a minute; after 15 seconds of loading we show the bundled, branded
+/// "Connect to internet" page instead (Capacitor itself does this for outright load errors via server.errorPath).
+class MainViewController: CAPBridgeViewController {
+    private var loadingSince: Date?
+    private var timer: Timer?
+
+    override func capacitorDidLoad() {
+        super.capacitorDidLoad()
+        timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.check() }
+    }
+
+    private func check() {
+        guard let web = webView, let errorURL = bridge?.config.errorPathURL else { return }
+        if web.isLoading {
+            if loadingSince == nil { loadingSince = Date() }
+            let onErrorPage = web.url?.host == errorURL.host && web.url?.path == errorURL.path
+            if !onErrorPage, let since = loadingSince, Date().timeIntervalSince(since) > 15 {
+                loadingSince = nil
+                web.stopLoading()
+                web.load(URLRequest(url: errorURL))
+            }
+        } else {
+            loadingSince = nil
+        }
+    }
+
+    deinit { timer?.invalidate() }
+}

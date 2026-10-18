@@ -18,5 +18,7 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- Android 12+ shows its own splash (icon on a flat colour) before ours: make that flat colour Ebookvox's cream instead of system grey. -->
+        <item name="windowSplashScreenBackground">#fbf5ec</item>
     </style>
 </resources>
