@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT=upload; rm -rf "$OUT"; mkdir -p "$OUT"
 # zip stores paths without a leading "./", so every pattern is given both bare and nested
-EX=(node_modules .next test-results data .git upload)
+EX=(node_modules .next .next-dev test-results data .git upload)
 FILES=("*.db" "*.db-journal" ".env" ".env.local" "*.log" ".DS_Store" "*.tsbuildinfo")
 COMMON=(); for d in "${EX[@]}"; do COMMON+=(-x "$d/*" -x "*/$d/*"); done; for f in "${FILES[@]}"; do COMMON+=(-x "$f" -x "*/$f"); done
 
