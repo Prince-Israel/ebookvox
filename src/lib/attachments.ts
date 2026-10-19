@@ -1,4 +1,3 @@
-import sharp from "sharp";
 import { NextRequest } from "next/server";
 import { ApiError } from "./api";
 
@@ -11,6 +10,13 @@ const sniff = (b: Buffer): boolean =>
   (b.subarray(0, 4).toString() === "RIFF" && b.subarray(8, 12).toString() === "WEBP") ||
   b.subarray(0, 3).toString() === "GIF";
 
+const mimeOf = (b: Buffer): string => (b[0] === 0xff ? "image/jpeg" : b[0] === 0x89 ? "image/png" : b.subarray(0, 3).toString() === "GIF" ? "image/gif" : "image/webp");
+const RAW_FALLBACK_MAX = 3 * 1024 * 1024;
+
+// sharp is loaded on first use, so a server that can't run its native binary can still build and start; photos are then stored as sent.
+let sharpLib: Promise<typeof import("sharp").default | null> | undefined;
+const loadSharp = () => (sharpLib ??= import("sharp").then((m) => m.default).catch((e) => { console.warn("sharp unavailable, photos are stored without re-encoding:", e instanceof Error ? e.message.split("\n")[0] : e); return null; }));
+
 export type Upload = { name: string; mime: string; size: number; data: Buffer };
 
 /** Validates photos by their actual bytes (not the filename or type the browser claims), shrinks them and strips location/camera metadata. */
@@ -21,9 +27,17 @@ export async function cleanImages(files: File[]): Promise<Upload[]> {
     if (f.size > MAX_RAW) throw new ApiError(413, `“${f.name}” is too large. Photos must be under 10 MB.`);
     const raw = Buffer.from(await f.arrayBuffer());
     if (!sniff(raw)) throw new ApiError(415, `“${f.name}” isn't a photo we can use. Please attach a JPG, PNG, WebP or GIF image.`);
+    const sharp = await loadSharp();
+    const safeName = (f.name || "photo").replace(/[^\w.\- ]+/g, "_").replace(/\.[A-Za-z0-9]+$/, "").slice(0, 60);
+    if (!sharp) {
+      if (raw.length > RAW_FALLBACK_MAX) throw new ApiError(413, `“${f.name}” is too large. Photos must be under 3 MB.`);
+      const mime = mimeOf(raw);
+      out.push({ name: `${safeName}.${mime.split("/")[1].replace("jpeg", "jpg")}`, mime, size: raw.length, data: raw });
+      continue;
+    }
     try {
       const data = await sharp(raw, { failOn: "error" }).rotate().resize(1600, 1600, { fit: "inside", withoutEnlargement: true }).flatten({ background: "#ffffff" }).jpeg({ quality: 82 }).toBuffer();
-      out.push({ name: (f.name || "photo").replace(/[^\w.\- ]+/g, "_").replace(/\.[A-Za-z0-9]+$/, "").slice(0, 60) + ".jpg", mime: "image/jpeg", size: data.length, data });
+      out.push({ name: safeName + ".jpg", mime: "image/jpeg", size: data.length, data });
     } catch {
       throw new ApiError(415, `We couldn't read “${f.name}”. It may be damaged — try another photo.`);
     }
