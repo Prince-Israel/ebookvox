@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ebookvox — Your words. Our voice.</title>
+<meta name="description" content="Read books, or turn any text, PDF or document into natural speech in 30+ voices. Listen anywhere. Publishers keep 85% of every sale.">
+<meta name="theme-color" content="#3a261c">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:title" content="Ebookvox — Your words. Our voice.">
+<meta property="og:description" content="Read it. Listen to it. Any book, any document, in a voice you like.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://ebookvox.com/">
+<meta property="og:image" content="https://ebookvox.com/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fbf5ec;--surface:#fff;--surface2:#f4eadc;--border:#e9dccb;--fg:#2b2522;--muted:#75675c;
+  --primary:#6b4a3a;--primary-hover:#57392b;--primary-fg:#fff;--accent:#ee9b6e;--accent-soft:#fde6d6;--accent-fg:#5a2e16;
+  --hero:#3a261c;--hero-fg:#fbf1e4;--shadow:0 1px 2px rgb(74 50 38/.06),0 8px 24px -8px rgb(74 50 38/.14);
+  --serif:"Fraunces",Georgia,"Times New Roman",serif;--sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#17110e;--surface:#241b17;--surface2:#2f241e;--border:#44362e;--fg:#f6ece1;--muted:#bfae9f;
+  --primary:#f0a57a;--primary-hover:#f5b793;--primary-fg:#2a160c;--accent:#f0a57a;--accent-soft:#3d2a20;--accent-fg:#fbd3b9;
+  --hero:#241812;--shadow:0 1px 2px rgb(0 0 0/.4),0 8px 24px -8px rgb(0 0 0/.5);}}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:inherit}img,svg{max-width:100%}
+.wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.01em;line-height:1.15;margin:0}
+.brand{display:inline-flex;align-items:center;gap:12px;text-decoration:none}
+.brand img{width:38px;height:38px;border-radius:10px}
+.brand b{font:600 1.45rem var(--serif);letter-spacing:-.01em}.brand b span{color:var(--accent)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 24px;border-radius:999px;font-weight:600;font-size:1rem;text-decoration:none;border:1.5px solid transparent;transition:.15s}
+.btn-primary{background:var(--accent);color:#3a1f0e}.btn-primary:hover{filter:brightness(1.05);transform:translateY(-1px)}
+.btn-ghost{border-color:rgb(251 241 228/.45);color:var(--hero-fg)}.btn-ghost:hover{background:rgb(251 241 228/.1)}
+.btn-solid{background:var(--primary);color:var(--primary-fg)}.btn-solid:hover{background:var(--primary-hover)}
+.btn-line{border-color:var(--border);color:var(--fg);background:var(--surface)}.btn-line:hover{background:var(--surface2)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+
+/* hero */
+.hero{background:var(--hero);color:var(--hero-fg);position:relative;overflow:hidden}
+.hero:before{content:"";position:absolute;inset:0;background:radial-gradient(60% 50% at 70% 30%,#7b523f66,transparent),radial-gradient(40% 40% at 10% 100%,#ee9b6e33,transparent)}
+.nav{position:relative;display:flex;align-items:center;justify-content:space-between;padding:22px 0}
+.nav .links{display:flex;gap:6px;align-items:center}
+.nav .links a{text-decoration:none;font-weight:500;padding:8px 14px;border-radius:999px;color:#f3dfc9}
+.nav .links a:hover{background:rgb(251 241 228/.1)}
+.hero-grid{position:relative;display:grid;gap:48px;align-items:center;padding:48px 0 88px;grid-template-columns:1.1fr .9fr}
+.eyebrow{font-size:.78rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#f6a67a;margin:0 0 16px}
+.hero h1{font-size:clamp(2.4rem,5.5vw,4rem)}
+.hero h1 em{font-style:italic;color:#f6a67a}
+.lead{font-size:1.15rem;color:#f3dfc9;max-width:34rem;margin:20px 0 32px}
+.cta{display:flex;flex-wrap:wrap;gap:12px}
+.hero small{display:block;margin-top:18px;color:#d9c5ae}
+.player{background:rgb(251 241 228/.08);border:1px solid rgb(251 241 228/.2);border-radius:28px;padding:28px;backdrop-filter:blur(6px)}
+.player .row{display:flex;gap:14px;align-items:center}
+.cover{width:64px;height:84px;border-radius:10px;background:linear-gradient(135deg,#f6c9a8,#e58f63);flex:none;box-shadow:0 8px 20px -8px #0008}
+.player h3{font-size:1.15rem}.player p{margin:2px 0 0;color:#d9c5ae;font-size:.9rem}
+.bars{display:flex;align-items:center;gap:6px;height:72px;margin:26px 0 18px}
+.bars i{flex:1;border-radius:99px;background:#f6a67a;animation:wave 1.4s ease-in-out infinite}
+@keyframes wave{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+.bars i{transform-origin:center;height:100%}
+.track{height:6px;border-radius:99px;background:rgb(251 241 228/.2);overflow:hidden}.track span{display:block;width:38%;height:100%;background:#f6a67a}
+.ctrl{display:flex;justify-content:center;align-items:center;gap:22px;margin-top:20px;color:#f3dfc9}
+.ctrl .play{width:52px;height:52px;border-radius:50%;background:#f6a67a;color:#3a1f0e;display:grid;place-items:center}
+@media (prefers-reduced-motion:reduce){.bars i{animation:none;transform:scaleY(.7)}html{scroll-behavior:auto}}
+
+/* sections */
+section{padding:80px 0}
+.sec-head{max-width:640px;margin:0 auto 48px;text-align:center}
+.sec-head .eyebrow{color:var(--accent)}
+.sec-head h2{font-size:clamp(1.8rem,3.6vw,2.6rem)}
+.sec-head p{color:var(--muted);margin:14px 0 0;font-size:1.05rem}
+.grid4{display:grid;gap:20px;grid-template-columns:repeat(4,1fr)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:28px;box-shadow:var(--shadow)}
+.card .ic{width:52px;height:52px;border-radius:16px;background:var(--accent-soft);color:var(--accent-fg);display:grid;place-items:center;margin-bottom:18px}
+.card h3{font-size:1.2rem;margin-bottom:8px}.card p{margin:0;color:var(--muted);font-size:.97rem}
+.alt{background:var(--surface2)}
+.steps{display:grid;gap:20px;grid-template-columns:repeat(3,1fr);counter-reset:s}
+.step{position:relative;padding:28px;border-radius:24px;background:var(--surface);border:1px solid var(--border)}
+.step:before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--primary);color:var(--primary-fg);font:600 1.1rem var(--serif);margin-bottom:16px}
+.step h3{font-size:1.15rem;margin-bottom:6px}.step p{margin:0;color:var(--muted)}
+.split{display:grid;gap:28px;grid-template-columns:1fr 1fr}
+.panel{border-radius:32px;padding:44px;display:flex;flex-direction:column;gap:16px;align-items:flex-start}
+.panel.reader{background:var(--hero);color:var(--hero-fg)}.panel.reader p,.panel.reader li{color:#f3dfc9}
+.panel.pub{background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow)}
+.panel h2{font-size:clamp(1.6rem,3vw,2.2rem)}.panel p{margin:0}
+.panel ul{margin:4px 0 12px;padding:0;list-style:none;display:grid;gap:8px}
+.panel li{padding-left:28px;position:relative}
+.panel li:before{content:"";position:absolute;left:0;top:.45em;width:14px;height:14px;border-radius:50%;background:var(--accent)}
+.pub li{color:var(--muted)}
+.big{font:600 3.2rem var(--serif);color:var(--accent);line-height:1}
+.cta-band{text-align:center;background:var(--hero);color:var(--hero-fg);border-radius:36px;padding:64px 24px}
+.cta-band h2{font-size:clamp(1.8rem,3.8vw,2.8rem)}.cta-band p{color:#f3dfc9;margin:14px auto 28px;max-width:34rem}
+.cta-band .cta{justify-content:center}
+footer{padding:40px 0;color:var(--muted);font-size:.92rem}
+footer .row{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:28px}
+footer nav{display:flex;gap:18px;flex-wrap:wrap}footer a{text-decoration:none}footer a:hover{color:var(--fg);text-decoration:underline}
+
+@media (max-width:900px){
+  .hero-grid{grid-template-columns:1fr;padding:24px 0 64px}
+  .grid4{grid-template-columns:1fr 1fr}.steps{grid-template-columns:1fr}.split{grid-template-columns:1fr}
+  .panel{padding:32px}section{padding:56px 0}.nav .links .hide-sm{display:none}
+}
+@media (max-width:520px){.grid4{grid-template-columns:1fr}.btn{width:100%}.cta{flex-direction:column}.nav .links a:not(.btn){display:none}.nav .btn{width:auto;min-height:42px;padding:0 18px}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="nav">
+      <a class="brand" href="/" aria-label="Ebookvox home"><img src="logo-mark.svg" alt="" width="38" height="38"><b>Ebook<span>vox</span></b></a>
+      <nav class="links" aria-label="Main">
+        <a class="hide-sm" href="#features">Features</a>
+        <a class="hide-sm" href="#how">How it works</a>
+        <a class="hide-sm" href="#publishers">Publishers</a>
+        <a class="btn btn-primary" href="https://app.ebookvox.com/home">Open the app</a>
+      </nav>
+    </div>
+
+    <div class="hero-grid">
+      <div>
+        <p class="eyebrow">Your words. Our voice.</p>
+        <h1>Read it. <em>Listen</em> to it. Anywhere.</h1>
+        <p class="lead">Discover books, or paste text and upload a PDF, DOCX or TXT, and hear it read aloud in 30+ natural voices. Your place is saved on every device.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="https://app.ebookvox.com/home">Start reading &amp; listening</a>
+          <a class="btn btn-ghost" href="https://publisher.ebookvox.com/sign-up">Publish your book</a>
+        </div>
+        <small>Free to browse. No card needed to start.</small>
+      </div>
+
+      <div class="player" aria-hidden="true">
+        <div class="row"><div class="cover"></div><div><h3>Chapter 1</h3><p>Reading · 1x · Natural voice</p></div></div>
+        <div class="bars"><i style="animation-delay:0s"></i><i style="animation-delay:.1s"></i><i style="animation-delay:.2s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.4s"></i><i style="animation-delay:.5s"></i><i style="animation-delay:.6s"></i><i style="animation-delay:.7s"></i><i style="animation-delay:.8s"></i><i style="animation-delay:.9s"></i><i style="animation-delay:1s"></i><i style="animation-delay:1.1s"></i><i style="animation-delay:1.2s"></i><i style="animation-delay:.15s"></i><i style="animation-delay:.35s"></i></div>
+        <div class="track"><span></span></div>
+        <div class="ctrl">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM20 6v12L9.5 12z"/></svg>
+          <span class="play"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM4 18V6l10.5 6z"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">What you get</p>
+      <h2>One place to read, listen and publish</h2>
+      <p>Ebookvox turns any book or document into something you can enjoy with your eyes or your ears.</p>
+    </div>
+    <div class="grid4">
+      <div class="card"><div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5.5C5 4 8.5 4 12 6c3.5-2 7-2 10-.5V19c-3-1.5-6.5-1.5-10 .5-3.5-2-7-2-10-.5z"/><path d="M12 6v13.5"/></svg></div><h3>Read comfortably</h3><p>A calm, clean reader with adjustable text size. Pick up exactly where you stopped.</p></div>
+      <div class="card"><div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><path d="M21 15a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2zM3 15a2 2 0 0 0 2 2h1v-5H5a2 2 0 0 0-2 2z"/></svg></div><h3>Listen to anything</h3><p>Natural voices read your books and documents aloud, and keep playing while you do other things.</p></div>
+      <div class="card"><div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16M9 4v16M14 4l4 16M19 5l2 .5"/></svg></div><h3>Discover books</h3><p>Browse free and paid titles, pay securely, and keep them in your library.</p></div>
+      <div class="card"><div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div><h3>30+ voices</h3><p>Choose a voice and speed you like. Your language and region set a sensible default.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="how" class="alt">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">How it works</p>
+      <h2>Start in under a minute</h2>
+    </div>
+    <div class="steps">
+      <div class="step"><h3>Open Ebookvox</h3><p>Browse the library as a guest, no sign-up needed. Create a free account when you want to save your place.</p></div>
+      <div class="step"><h3>Pick a book or add your own</h3><p>Choose a title, or paste text and upload a PDF, DOCX or TXT.</p></div>
+      <div class="step"><h3>Press play</h3><p>Listen with a voice you like. Go ad-free any time with a low-cost subscription.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="publishers">
+  <div class="wrap">
+    <div class="split">
+      <div class="panel reader">
+        <p class="eyebrow">For readers</p>
+        <h2>Your next book is waiting</h2>
+        <ul><li>Free and paid books in one library</li><li>Read, or listen with a natural voice</li><li>Works on the web, Android and iPhone</li></ul>
+        <a class="btn btn-primary" href="https://app.ebookvox.com/home">Go to the reader</a>
+      </div>
+      <div class="panel pub">
+        <p class="eyebrow" style="color:var(--accent)">For authors &amp; publishers</p>
+        <h2>Publish your book.</h2>
+        <div class="big">85%</div>
+        <p style="color:var(--muted)">of every sale goes to you.</p>
+        <ul><li>Upload your book and set your own price</li><li>Reach readers who read and listen</li><li>Track sales and earnings in your dashboard</li></ul>
+        <a class="btn btn-solid" href="https://publisher.ebookvox.com/sign-up">Create a publisher account</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="cta-band">
+      <h2>Give your words a voice.</h2>
+      <p>Join readers and publishers on Ebookvox today.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://app.ebookvox.com/home">Open the app</a>
+        <a class="btn btn-ghost" href="https://publisher.ebookvox.com/sign-up">Become a publisher</a>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="row">
+      <a class="brand" href="/" aria-label="Ebookvox home"><img src="logo-mark.svg" alt="" width="30" height="30"><b style="font-size:1.2rem">Ebook<span>vox</span></b></a>
+      <nav aria-label="Footer">
+        <a href="https://app.ebookvox.com/home">Reader</a>
+        <a href="https://publisher.ebookvox.com/sign-up">Publisher sign-up</a>
+        <a href="https://publisher.ebookvox.com/sign-in">Publisher sign-in</a>
+      </nav>
+      <span>© <script>document.write(new Date().getFullYear())</script> Ebookvox. Your words. Our voice.</span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

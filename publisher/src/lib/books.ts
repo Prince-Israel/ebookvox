@@ -1,11 +1,10 @@
-import sharp from "sharp";
 import { z } from "zod";
 import { db } from "./db";
 import { ApiError } from "./api";
 import { getCategories } from "./platform-config";
 import { CURRENCIES } from "./countries";
 import { ExtractError, MAX_UPLOAD, extractText } from "./extract";
-import { sniffImage } from "./images";
+import { loadSharp, sniffImage } from "./images";
 
 const MAX_COVER = 8 * 1024 * 1024;
 const PRICE_MAX = 100_000_000;
@@ -67,7 +66,12 @@ export async function parseBookForm(form: FormData, partial: boolean): Promise<P
     if (cover.size > MAX_COVER) throw new ApiError(413, "The cover image is too large. Please use one under 8 MB.", { cover: "Too large (8 MB max)." });
     const buf = Buffer.from(await cover.arrayBuffer());
     if (!sniffImage(buf)) throw new ApiError(415, "The cover must be a JPG, PNG or WebP image.", { cover: "Use a JPG, PNG or WebP image." });
-    try {
+    const sharp = await loadSharp();
+    if (!sharp) {
+      // No image library on this server: accept a JPEG cover as uploaded.
+      if (sniffImage(buf) !== "image/jpeg") throw new ApiError(415, "Please upload the cover as a JPG image.", { cover: "Use a JPG image." });
+      out.cover = { data: buf };
+    } else try {
       const meta = await sharp(buf).metadata();
       if ((meta.width ?? 0) < 300 || (meta.height ?? 0) < 400) throw new ApiError(422, "The cover is too small. Use an image at least 300 × 400 pixels.", { cover: "Minimum 300 × 400 px." });
       out.cover = { data: await sharp(buf).rotate().resize(900, 1350, { fit: "cover" }).jpeg({ quality: 86 }).toBuffer() };

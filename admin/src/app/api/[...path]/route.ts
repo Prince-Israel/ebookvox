@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import sharp from "sharp";
 import { db } from "@/lib/db";
 import { ApiError, rateLimit, route } from "@/lib/api";
 import { createSession, destroySession, hashPassword, publicAdmin, requireAdmin, requirePermission, requireSuper, verifyPassword, getAdmin, type Admin } from "@/lib/auth";
@@ -11,7 +10,7 @@ import { notifyAdmins } from "@/lib/notify";
 import { pollEvents } from "@/lib/events";
 import { getSettings, saveSetting, APP_VERSION, DEVELOPER, COPYRIGHT } from "@/lib/settings";
 import { emailSchema, passwordSchema, phoneSchema } from "@/lib/validation";
-import { sniffImage } from "@/lib/images";
+import { avatarImage, sniffImage } from "@/lib/images";
 import { formatMoney } from "@/lib/money";
 
 // =====================================================================================
@@ -67,9 +66,10 @@ on("POST", "me/avatar", "auth", async ({ admin, req }) => {
   if (file.size > 6 * 1024 * 1024) throw new ApiError(413, "That photo is too large (6 MB max).");
   const buf = Buffer.from(await file.arrayBuffer());
   if (!sniffImage(buf)) throw new ApiError(415, "Please upload a JPG, PNG or WebP image.");
-  let data: Buffer;
-  try { data = await sharp(buf).rotate().resize(512, 512, { fit: "cover" }).jpeg({ quality: 88 }).toBuffer(); } catch { throw new ApiError(415, "We couldn't read that image."); }
-  await db.adminAvatar.upsert({ where: { adminId: admin.id }, create: { adminId: admin.id, mime: "image/jpeg", data: new Uint8Array(data) }, update: { mime: "image/jpeg", data: new Uint8Array(data) } });
+  let img: { data: Buffer; mime: string };
+  try { img = await avatarImage(buf); } catch (e) { throw new ApiError(e instanceof Error && e.message === "TOO_BIG_RAW" ? 413 : 415, e instanceof Error && e.message === "TOO_BIG_RAW" ? "That photo is too large (1.5 MB max)." : "We couldn't read that image."); }
+  const data = img.data;
+  await db.adminAvatar.upsert({ where: { adminId: admin.id }, create: { adminId: admin.id, mime: img.mime, data: new Uint8Array(data) }, update: { mime: img.mime, data: new Uint8Array(data) } });
   const now = new Date();
   await db.adminUser.update({ where: { id: admin.id }, data: { avatarUpdatedAt: now } });
   return { avatarUpdatedAt: now.toISOString() };
