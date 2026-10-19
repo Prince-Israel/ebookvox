@@ -3,6 +3,8 @@ const nextConfig = {
   distDir: process.env.DIST_DIR ?? ".next", // lets `next dev` use its own folder so it never overwrites a running production build
   serverExternalPackages: ["@prisma/client", "msedge-tts", "unpdf", "mammoth", "bcryptjs"],
   poweredByHeader: false,
+  // Shared hosting limits how many processes an account may start. `LOW_RESOURCE_BUILD=1 next build` builds with one worker and no parallel build processes.
+  ...(process.env.LOW_RESOURCE_BUILD ? { experimental: { cpus: 1, webpackBuildWorker: false, parallelServerCompiles: false, parallelServerBuildTraces: false } } : {}),
   async headers() {
     return [
       {
