@@ -100,7 +100,7 @@ export default function Privacy() {
           <li>object to or restrict some uses, and withdraw consent you gave us;</li>
           <li>complain to your data protection authority, such as the Nigeria Data Protection Commission in Nigeria.</li>
         </Ul>
-        <p>To use any of these rights, contact us at {mail}. We may need to confirm it is really you first.</p>
+        <p>To use any of these rights, contact us at {mail}. We may need to confirm it is really you first. You can delete your account yourself from Profile in the app or website; see <a className="font-medium text-accent hover:underline" href="/delete-account">how to delete your account</a>.</p>
       </Section>
 
       <Section n={11} title="Children">

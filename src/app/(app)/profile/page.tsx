@@ -11,6 +11,7 @@ import { countryName } from "@/lib/countries";
 import { usePublicConfig } from "@/lib/public-config";
 import { usePlayback } from "@/components/audio/PlaybackProvider";
 import { AppVersion } from "@/components/AppVersion";
+import { DeleteAccount } from "@/components/DeleteAccount";
 
 // Shrinks big phone photos before upload (faster, and handles any size camera image).
 async function resizeImage(file: File, max = 640): Promise<Blob> {
@@ -111,6 +112,7 @@ export default function ProfilePage() {
         </div>
         <Card><h2 className="mb-5 text-2xl font-semibold">Personal details</h2><AccountForm /></Card>
       </div>
+      <DeleteAccount />
       <AppVersion />
     </div>
   );

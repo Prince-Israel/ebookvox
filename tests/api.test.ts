@@ -89,6 +89,24 @@ async function main() {
   const nt = await u.req("POST", "/api/auth/signup", ntBody, other);
   const nf = await u.req("POST", "/api/auth/signup", { ...ntBody, acceptTerms: false }, other);
   ok(nt.status === 400 && nt.data.fields?.acceptTerms && nf.status === 400 && !(await db.user.findUnique({ where: { email: `noterms.${stamp}@example.com` } })), "sign-up without accepting the Privacy Policy & Terms is refused server-side", nt.data);
+  // account deletion (a separate address keeps the sign-up rate limit of the other tests intact)
+  const dc = new Client();
+  const dEmail = `deleteme.${stamp}@example.com`;
+  const dsu = await dc.req("POST", "/api/auth/signup", { ...ntBody, email: dEmail, acceptTerms: true }, other);
+  ok(dsu.status === 200, "a throw-away account can be created for the deletion test", dsu.data);
+  const dBad1 = await dc.req("DELETE", "/api/me", { confirm: "nope", password: pw });
+  const dBad2 = await dc.req("DELETE", "/api/me", { confirm: "DELETE", password: "Wrong-pass-1" });
+  ok(dBad1.status === 400 && dBad1.data.fields?.confirm && dBad2.status === 400 && dBad2.data.fields?.password, "deleting needs the word DELETE and the right password", { a: dBad1.data, b: dBad2.data });
+  ok((await dc.get("/api/me")).status === 200, "a refused deletion leaves the account untouched");
+  const dOk = await dc.req("DELETE", "/api/me", { confirm: "delete", password: pw });
+  ok(dOk.status === 200, "account deletion succeeds", dOk.data);
+  const dRow = await db.user.findFirst({ where: { id: dsu.data.user.id } });
+  ok(dRow?.status === "DELETED" && !dRow.email.includes("deleteme") && dRow.firstName === "Deleted" && dRow.passwordHash === null && dRow.phone === null, "the deleted account is anonymised (no name, email, phone or password left)");
+  ok((await dc.get("/api/me")).status === 401, "the deleted account is signed out");
+  ok((await new Client().post("/api/auth/signin", { email: dEmail, password: pw })).status === 401, "the deleted account can no longer sign in");
+  ok((await db.session.count({ where: { userId: dsu.data.user.id } })) === 0, "all sessions of the deleted account are gone");
+  const dp = await fetch(BASE + "/delete-account");
+  ok(dp.status === 200 && (await dp.text()).includes("Delete your Ebookvox account"), "the public delete-account page (for Google Play) opens without signing in");
   const lgP = await fetch(BASE + "/privacy"), lgT = await fetch(BASE + "/terms");
   const lgPt = await lgP.text(), lgTt = await lgT.text();
   ok(lgP.status === 200 && lgT.status === 200 && lgPt.includes("Privacy Policy") && lgTt.includes("Terms &amp; Conditions"), "the Privacy Policy and Terms pages are public (no sign-in needed)");

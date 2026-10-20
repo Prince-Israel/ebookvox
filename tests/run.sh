@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 # Tests must never send real email or call real services, whatever the developer's .env contains.
 export SMTP_HOST="" SMTP_USER="" SMTP_PASS="" AZURE_SPEECH_KEY="" AZURE_SPEECH_REGION="" GOOGLE_CLIENT_ID="" APPLE_CLIENT_ID=""
+export ADMOB_ANDROID_BANNER_ID="" ADMOB_ANDROID_VIDEO_ID="" ADMOB_IOS_BANNER_ID="" ADMOB_IOS_VIDEO_ID="" ADMOB_TESTING="" # never depend on the real ad units in .env
 # Ad settings the UI tests rely on: website banners + a video tag (the tests serve a stand-in for Google's IMA script)
 export ADSENSE_CLIENT="ca-pub-1234567890123456" ADSENSE_SLOT_HOME_TOP="1111111111" ADSENSE_SLOT_HOME_BOTTOM="2222222222" VIDEO_AD_TAG_URL="https://ads.example.test/vast.xml"
 export DATABASE_URL="file:./test.db"

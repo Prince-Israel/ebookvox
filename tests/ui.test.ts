@@ -125,6 +125,15 @@ async function main() {
   ok(!!dbu?.termsAcceptedAt, "the moment the Privacy Policy & Terms were accepted is recorded");
   const foot = p.locator("footer nav[aria-label=Legal]").last();
   ok((await foot.getByRole("link", { name: "Privacy Policy" }).getAttribute("href")) === "/privacy" && (await foot.getByRole("link", { name: /Terms/ }).getAttribute("href")) === "/terms", "the footer of the Reader links to the Privacy Policy and Terms & Conditions");
+  await p.goto(BASE + "/profile");
+  const delBtn = p.getByRole("button", { name: "Delete account" });
+  ok(await delBtn.isVisible(), "Profile has a Delete account button");
+  await delBtn.click();
+  const delGo = p.getByRole("button", { name: "Delete my account" });
+  await delGo.waitFor();
+  ok(await delGo.isDisabled(), "the delete button stays disabled until DELETE is typed");
+  await p.getByRole("button", { name: "Cancel" }).click();
+  await p.goto(BASE + "/home");
   const lp = await p.context().newPage();
   await lp.goto(BASE + "/privacy");
   ok(await lp.getByRole("heading", { name: "Privacy Policy", level: 1 }).isVisible() && (await lp.getByRole("heading", { level: 2 }).count()) >= 10, "the Privacy Policy page shows its full content");
