@@ -31,9 +31,9 @@ async function overflow(p: Page, label: string) { const o = await p.evaluate(() 
 async function main() {
   // ---- seed the ecosystem through the real APIs
   const rj = { v: "" }, pj = { v: "" };
-  const rs = await api(READER, rj, "POST", "/api/auth/signup", { firstName: "Ola", lastName: "Reader", email: `ola.${stamp}@example.com`, password: pw, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8012345678" });
+  const rs = await api(READER, rj, "POST", "/api/auth/signup", { firstName: "Ola", lastName: "Reader", email: `ola.${stamp}@example.com`, password: pw, acceptTerms: true, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8012345678" });
   await rdb.user.updateMany({ where: { email: `ola.${stamp}@example.com` }, data: { emailVerifiedAt: new Date() } });
-  const ps = await api(PUB, pj, "POST", "/api/auth/signup", { firstName: "Pia", lastName: "Press", email: `pia.${stamp}@example.com`, password: pw, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8087654321" });
+  const ps = await api(PUB, pj, "POST", "/api/auth/signup", { firstName: "Pia", lastName: "Press", email: `pia.${stamp}@example.com`, password: pw, acceptTerms: true, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8087654321" });
   await pdb.user.updateMany({ where: { email: `pia.${stamp}@example.com` }, data: { emailVerifiedAt: new Date() } });
   const mkBook = async (title: string) => {
     const fd = new FormData();
@@ -161,7 +161,7 @@ async function main() {
   await p.getByRole("tab", { name: "Activity" }).click();
   await p.getByText("Registered an account").waitFor();
   await shot("04-user-profile");
-  const doomed = await api(READER, { v: "" }, "POST", "/api/auth/signup", { firstName: "Del", lastName: "Me", email: `delme.${stamp}@example.com`, password: pw, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8011111111" });
+  const doomed = await api(READER, { v: "" }, "POST", "/api/auth/signup", { firstName: "Del", lastName: "Me", email: `delme.${stamp}@example.com`, password: pw, acceptTerms: true, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8011111111" });
   await p.goto(BASE + "/users");
   await p.getByLabel("Search users", { exact: true }).fill("delme." + stamp);
   await p.getByRole("link", { name: "Del Me" }).first().waitFor();

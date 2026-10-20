@@ -1,5 +1,6 @@
 "use client";
 import { isNativeApp } from "@/lib/public-config";
+import { LegalLink } from "./LegalLink";
 
 const Google = () => (
   <svg viewBox="0 0 48 48" className="size-7" aria-hidden>
@@ -32,6 +33,7 @@ export function SocialButtons({ verb = "Continue", next }: { verb?: string; next
     <div className="space-y-3">
       <a href={`/api/auth/oauth/google/start${q(false)}`} onClick={(e) => open(e, "google")} className={cls}><Google /> {verb} with Google</a>
       <a href={`/api/auth/oauth/apple/start${q(false)}`} onClick={(e) => open(e, "apple")} className={cls}><Apple /> {verb} with Apple</a>
+      {verb === "Sign up" && <p className="px-2 text-center text-xs text-muted">By continuing with Google or Apple you agree to our <LegalLink href="/terms">Terms &amp; Conditions</LegalLink> and <LegalLink href="/privacy">Privacy Policy</LegalLink>.</p>}
       <div className="flex items-center gap-3 py-2 text-xs uppercase tracking-widest text-muted"><span className="h-px flex-1 bg-line" />or with email<span className="h-px flex-1 bg-line" /></div>
     </div>
   );

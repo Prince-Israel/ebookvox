@@ -45,6 +45,7 @@ export const signUpSchema = z
     country: countrySchema,
     phoneCountry: countrySchema,
     phone: z.string().trim(),
+    acceptTerms: z.literal(true, { message: "Please accept the Privacy Policy and Terms to continue." }),
   })
   .superRefine((v, ctx) => {
     if (v.password !== v.confirmPassword) ctx.addIssue({ code: "custom", path: ["confirmPassword"], message: "Passwords do not match." });

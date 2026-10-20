@@ -52,6 +52,15 @@ async function main() {
   await p.locator("#su-confirm").fill(pw);
   ok((await p.locator("#su-phone").inputValue()) === "8012345678" && (await p.locator("#su-password").inputValue()) === pw, "phone and password inputs are independent");
   await shot("02-signup");
+  ok(!(await p.locator("#su-terms").isChecked()), "the Privacy Policy & Terms box starts unticked");
+  const ph = await p.locator("label[for=su-terms] a", { hasText: "Privacy Policy" }).getAttribute("href");
+  const th = await p.locator("label[for=su-terms] a", { hasText: "Terms" }).getAttribute("href");
+  ok(/\/privacy$/.test(ph ?? "") && /\/terms$/.test(th ?? "") && /^https?:\/\//.test(ph ?? ""), "the checkbox links to the Privacy Policy and Terms pages on the Reader site", { ph, th });
+  await p.getByRole("button", { name: "Create Publisher Account" }).click();
+  await p.getByText("Please accept the Privacy Policy and Terms to continue.").waitFor({ timeout: 5000 });
+  ok(p.url().includes("/sign-up"), "submitting without ticking the box is blocked");
+  ok((await p.locator("footer nav[aria-label=Legal] a").count()) >= 2, "the sign-up page footer links to the Privacy Policy and Terms");
+  await p.locator("#su-terms").check();
   await p.getByRole("button", { name: "Create Publisher Account" }).click();
   await p.getByRole("heading", { name: "Verify your email" }).waitFor({ timeout: 15000 });
   ok(true, "unverified publisher sees the verification gate");
@@ -142,7 +151,7 @@ async function main() {
   await p.getByRole("link", { name: "Harbour Lights" }).first().waitFor();
   ok(true, "listed under Approved");
 
-  const rc = await fetch(READER + "/api/auth/signup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ firstName: "Tola", lastName: "Reader", email: `r.${stamp}@example.com`, password: pw, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8099999999" }) });
+  const rc = await fetch(READER + "/api/auth/signup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ firstName: "Tola", lastName: "Reader", email: `r.${stamp}@example.com`, password: pw, acceptTerms: true, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8099999999" }) });
   const rjar = rc.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
   await rdb.user.updateMany({ where: { email: `r.${stamp}@example.com` }, data: { emailVerifiedAt: new Date() } });
   const rget = (u: string, init: RequestInit = {}) => fetch(READER + u, { ...init, headers: { cookie: rjar, "content-type": "application/json" } });

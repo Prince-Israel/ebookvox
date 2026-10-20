@@ -47,13 +47,13 @@ const SUPER = { email: "superadmin@ebookvox.app", password: "ChangeMe!2026" };
 async function readerUser(tag: string, country: string) {
   const c = new Client(READER, country);
   const phone = country === "NG" ? "8012345678" : country === "GB" ? "7700900123" : "2025550123";
-  const r = await c.post("/api/auth/signup", { firstName: "Rita", lastName: tag, email: `${tag}.${stamp}@example.com`, password: pw, confirmPassword: pw, country, phoneCountry: country, phone });
+  const r = await c.post("/api/auth/signup", { firstName: "Rita", lastName: tag, email: `${tag}.${stamp}@example.com`, password: pw, acceptTerms: true, confirmPassword: pw, country, phoneCountry: country, phone });
   await rdb.user.updateMany({ where: { email: `${tag}.${stamp}@example.com` }, data: { emailVerifiedAt: new Date() } });
   return { c, r, email: `${tag}.${stamp}@example.com`, id: r.data?.user?.id as string };
 }
 async function publisherUser(tag: string, country = "NG") {
   const c = new Client(PUB);
-  const r = await c.post("/api/auth/signup", { firstName: "Pat", lastName: tag, email: `${tag}.${stamp}@example.com`, password: pw, confirmPassword: pw, country, phoneCountry: country, phone: country === "NG" ? "8012345678" : "2025550123" });
+  const r = await c.post("/api/auth/signup", { firstName: "Pat", lastName: tag, email: `${tag}.${stamp}@example.com`, password: pw, acceptTerms: true, confirmPassword: pw, country, phoneCountry: country, phone: country === "NG" ? "8012345678" : "2025550123" });
   await pdb.user.updateMany({ where: { email: `${tag}.${stamp}@example.com` }, data: { emailVerifiedAt: new Date() } });
   return { c, r, email: `${tag}.${stamp}@example.com`, id: r.data?.user?.id as string };
 }

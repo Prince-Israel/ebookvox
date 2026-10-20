@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { StoreBadges } from "@/components/GetTheApp";
+import { LegalFooter } from "@/components/LegalFooter";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -14,13 +15,14 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
         <div className="relative space-y-5">
           <StoreBadges heading="Get the app" headingClassName="text-[#c9b49f]" />
-          <p className="text-sm text-[#c9b49f]">© {new Date().getFullYear()} Ebookvox</p>
+          <p className="text-sm text-[#c9b49f]">© {new Date().getFullYear()} Ebookvox · <Link href="/privacy" className="hover:text-white hover:underline">Privacy Policy</Link> · <Link href="/terms" className="hover:text-white hover:underline">Terms &amp; Conditions</Link></p>
         </div>
       </aside>
       <main className="safe-t safe-b flex flex-col px-5 py-6 sm:px-10">
         <div className="mb-6 lg:hidden"><Link href="/"><Logo size={34} /></Link></div>
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-4">{children}</div>
         <div className="mx-auto w-full max-w-md pb-2 pt-4 text-center lg:hidden"><StoreBadges heading="Get the app" headingClassName="text-muted" className="[&>div]:justify-center" /></div>
+        <LegalFooter className="mx-auto w-full max-w-md pb-2 lg:hidden" />
       </main>
     </div>
   );

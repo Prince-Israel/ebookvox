@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Bell, BookOpen, Crown, Home, Library, LifeBuoy, Receipt, Settings, ShieldCheck, UserRound, Wallet } from "lucide-react";
 import { Logo } from "./Logo";
+import { LegalFooter } from "./LegalFooter";
 import { Avatar } from "./Avatar";
 import { Banner, Button, cx, useToast } from "./ui";
 import { useAuth } from "./UserContext";
@@ -123,6 +124,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           )}
           {children}
+          <LegalFooter className="mt-12" />
         </main>
       </div>
 

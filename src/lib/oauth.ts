@@ -130,6 +130,7 @@ export async function completeOAuth(p: Provider, params: { state: string; code: 
           lastName: id.lastName || "",
           country,
           currency: currencyForCountry(country),
+          termsAcceptedAt: new Date(), // the sign-up screen states that continuing means accepting the Terms and Privacy Policy
           emailVerifiedAt: id.emailVerified ? new Date() : null,
         },
       });

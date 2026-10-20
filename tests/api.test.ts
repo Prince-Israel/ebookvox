@@ -48,7 +48,7 @@ class Client {
 const stamp = Date.now().toString(36);
 const pw = "Sup3rSecret!";
 const signup = (c: Client, tag: string, country: string, dial = country, phone = "8012345678") =>
-  c.post("/api/auth/signup", { firstName: "Test", lastName: tag, email: `${tag}.${stamp}@example.com`, password: pw, confirmPassword: pw, country, phoneCountry: dial, phone });
+  c.post("/api/auth/signup", { firstName: "Test", lastName: tag, email: `${tag}.${stamp}@example.com`, password: pw, acceptTerms: true, confirmPassword: pw, country, phoneCountry: dial, phone });
 const lastToken = async (email: string, kind: string) => {
   const log = await db.emailLog.findFirst({ where: { toEmail: email, subject: { contains: kind } }, orderBy: { createdAt: "desc" } });
   return log?.body.match(/token=([\w-]+)/)?.[1];
@@ -68,11 +68,11 @@ async function main() {
   ok((await u.get("/api/library")).status === 401 && (await u.get("/api/documents")).status === 401, "library and documents stay private");
   const bad1 = await signup(u, "badphone", "NG", "NG", "80abc12345");
   ok(bad1.status === 400 && bad1.data.fields?.phone, "phone field rejects letters", bad1.data);
-  const bad2 = await u.post("/api/auth/signup", { firstName: "A", lastName: "B", email: "nope", password: "short", confirmPassword: "x", country: "NG", phoneCountry: "NG", phone: "8012345678" });
+  const bad2 = await u.post("/api/auth/signup", { firstName: "A", lastName: "B", email: "nope", password: "short", acceptTerms: true, confirmPassword: "x", country: "NG", phoneCountry: "NG", phone: "8012345678" });
   ok(bad2.status === 400 && bad2.data.fields?.email, "invalid email rejected", bad2.data);
-  const bad3 = await u.post("/api/auth/signup", { firstName: "A", lastName: "B", email: `m.${stamp}@example.com`, password: pw, confirmPassword: pw + "x", country: "NG", phoneCountry: "NG", phone: "8012345678" });
+  const bad3 = await u.post("/api/auth/signup", { firstName: "A", lastName: "B", email: `m.${stamp}@example.com`, password: pw, acceptTerms: true, confirmPassword: pw + "x", country: "NG", phoneCountry: "NG", phone: "8012345678" });
   ok(bad3.status === 400 && bad3.data.fields?.confirmPassword, "mismatched confirm password rejected", bad3.data);
-  const weak = await u.post("/api/auth/signup", { firstName: "A", lastName: "B", email: `w.${stamp}@example.com`, password: "alllowercase1", confirmPassword: "alllowercase1", country: "NG", phoneCountry: "NG", phone: "8012345678" });
+  const weak = await u.post("/api/auth/signup", { firstName: "A", lastName: "B", email: `w.${stamp}@example.com`, password: "alllowercase1", acceptTerms: true, confirmPassword: "alllowercase1", country: "NG", phoneCountry: "NG", phone: "8012345678" });
   ok(weak.status === 400 && weak.data.fields?.password, "weak password rejected", weak.data);
 
   const su = await signup(u, "ng", "NG");
@@ -82,6 +82,16 @@ async function main() {
   ok(row?.passwordHash?.startsWith("$2"), "password stored as bcrypt hash");
   ok((await u.get("/api/me")).data.user.email === `ng.${stamp}@example.com`, "session cookie authenticates /api/me");
   ok((await signup(new Client(), "ng", "NG")).status === 409, "duplicate email rejected");
+  ok(!!row?.termsAcceptedAt, "the time the Privacy Policy & Terms were accepted is recorded");
+  // a separate address, so these two refused attempts don't use up the sign-up limit of the other tests
+  const other = { headers: { "x-forwarded-for": "203.0.113.77" } };
+  const ntBody = { firstName: "No", lastName: "Terms", email: `noterms.${stamp}@example.com`, password: pw, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8012345678" };
+  const nt = await u.req("POST", "/api/auth/signup", ntBody, other);
+  const nf = await u.req("POST", "/api/auth/signup", { ...ntBody, acceptTerms: false }, other);
+  ok(nt.status === 400 && nt.data.fields?.acceptTerms && nf.status === 400 && !(await db.user.findUnique({ where: { email: `noterms.${stamp}@example.com` } })), "sign-up without accepting the Privacy Policy & Terms is refused server-side", nt.data);
+  const lgP = await fetch(BASE + "/privacy"), lgT = await fetch(BASE + "/terms");
+  const lgPt = await lgP.text(), lgTt = await lgT.text();
+  ok(lgP.status === 200 && lgT.status === 200 && lgPt.includes("Privacy Policy") && lgTt.includes("Terms &amp; Conditions"), "the Privacy Policy and Terms pages are public (no sign-in needed)");
 
   const gb = new Client("GB"), us = new Client("US"), de = new Client("DE");
   ok((await signup(gb, "gb", "GB", "GB", "7700900123")).data?.user?.currency === "GBP", "UK → GBP");

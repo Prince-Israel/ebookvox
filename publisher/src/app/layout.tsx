@@ -4,6 +4,8 @@ import "@fontsource-variable/inter";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui";
 import { KeyboardAware } from "@/components/KeyboardAware";
+import { LegalProvider } from "@/components/LegalLinks";
+import { readerPublicUrl } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: { default: "Ebookvox Publisher — Your Words. Our Voice.", template: "%s · Ebookvox Publisher" },
@@ -18,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
-      <body><ToastProvider>{children}</ToastProvider>
+      <body><LegalProvider readerUrl={readerPublicUrl()}><ToastProvider>{children}</ToastProvider></LegalProvider>
         <KeyboardAware /></body>
     </html>
   );

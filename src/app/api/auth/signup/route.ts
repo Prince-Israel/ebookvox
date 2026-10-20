@@ -16,6 +16,7 @@ export const POST = route(async (req) => {
   const user = await db.user.create({
     data: {
       email: d.email,
+      termsAcceptedAt: new Date(),
       emailVerifiedAt: !process.env.SMTP_HOST && process.env.DEV_AUTO_VERIFY === "true" ? new Date() : null, 
       firstName: d.firstName,
       lastName: d.lastName,

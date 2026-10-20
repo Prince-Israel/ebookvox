@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Banner, Button, Field, Input, Select } from "@/components/ui";
 import { SocialButtons } from "@/components/SocialButtons";
+import { TermsCheckbox } from "@/components/LegalLink";
 import { api, ApiFailure } from "@/lib/client";
 import { currencyForCountry, isCountry, listCountries } from "@/lib/countries";
 import { detectCountry } from "@/lib/geo-client";
@@ -22,6 +23,7 @@ function Form() {
   const [phoneCountry, setPhoneCountry] = useState("NG");
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [phone, setPhone] = useState("");
+  const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -37,11 +39,12 @@ function Form() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
     setFields({});
+    if (!accepted) { setFields({ acceptTerms: "Please accept the Privacy Policy and Terms to continue." }); return; }
+    setBusy(true);
     try {
-      await api("/api/auth/signup", { method: "POST", json: { firstName, lastName, email, password, confirmPassword, country, phoneCountry, phone } });
+      await api("/api/auth/signup", { method: "POST", json: { firstName, lastName, email, password, confirmPassword, country, phoneCountry, phone, acceptTerms: accepted } });
       window.location.href = next;
     } catch (err) {
       const f = err as ApiFailure;
@@ -79,6 +82,7 @@ function Form() {
         </Field>
         <Input label="Password" id="su-password" name="new-password" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} error={fields.password} hint="At least 8 characters with upper and lower case letters and a number." />
         <Input label="Confirm password" id="su-confirm" name="confirm-new-password" type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} error={fields.confirmPassword} />
+        <TermsCheckbox checked={accepted} onChange={setAccepted} error={fields.acceptTerms} />
         <Button type="submit" size="lg" className="w-full" loading={busy}>Create Account</Button>
       </form>
       <p className="mt-6 text-center text-sm text-muted">Already have an account? <Link href={`/sign-in?next=${encodeURIComponent(next)}`} className="font-semibold text-accent hover:underline">Sign in</Link></p>

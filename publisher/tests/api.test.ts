@@ -40,7 +40,7 @@ class Client {
 
 const stamp = Date.now().toString(36);
 const pw = "Sup3rSecret!";
-const signup = (c: Client, tag: string, country: string, phone = "8012345678", first = "Pub") => c.post("/api/auth/signup", { firstName: first, lastName: tag, email: `${tag}.${stamp}@example.com`, password: pw, confirmPassword: pw, country, phoneCountry: country, phone });
+const signup = (c: Client, tag: string, country: string, phone = "8012345678", first = "Pub") => c.post("/api/auth/signup", { firstName: first, lastName: tag, email: `${tag}.${stamp}@example.com`, password: pw, acceptTerms: true, confirmPassword: pw, country, phoneCountry: country, phone });
 const verifyEmail = async (c: Client, tag: string) => {
   const email = `${tag}.${stamp}@example.com`;
   const log = await db.emailLog.findFirst({ where: { toEmail: email, subject: { contains: "Verify" } }, orderBy: { createdAt: "desc" } });
@@ -71,7 +71,7 @@ async function bookForm(over: Record<string, any> = {}, opts: { cover?: boolean 
 
 async function readerSignup(tag: string, country: string) {
   const c = new Client(READER, country);
-  const r = await c.post("/api/auth/signup", { firstName: "Buyer", lastName: tag, email: `${tag}.${stamp}@example.com`, password: pw, confirmPassword: pw, country, phoneCountry: country, phone: country === "NG" ? "8012345678" : country === "GB" ? "7700900123" : "2025550123" });
+  const r = await c.post("/api/auth/signup", { firstName: "Buyer", lastName: tag, email: `${tag}.${stamp}@example.com`, password: pw, acceptTerms: true, confirmPassword: pw, country, phoneCountry: country, phone: country === "NG" ? "8012345678" : country === "GB" ? "7700900123" : "2025550123" });
   await rdb.user.updateMany({ where: { email: `${tag}.${stamp}@example.com` }, data: { emailVerifiedAt: new Date() } });
   return { c, r };
 }
@@ -93,10 +93,13 @@ async function main() {
   ok([307, 308].includes(rd.status), "dashboard redirects when signed out");
   const bp = await signup(A, "badphone", "NG", "80abc12345");
   ok(bp.status === 400 && bp.data.fields?.phone, "phone rejects letters", bp.data);
-  ok((await A.post("/api/auth/signup", { firstName: "x", lastName: "y", email: "nope", password: "short", confirmPassword: "z", country: "NG", phoneCountry: "NG", phone: "8012345678" })).status === 400, "invalid email/password rejected");
+  ok((await A.post("/api/auth/signup", { firstName: "x", lastName: "y", email: "nope", password: "short", acceptTerms: true, confirmPassword: "z", country: "NG", phoneCountry: "NG", phone: "8012345678" })).status === 400, "invalid email/password rejected");
   const su = await signup(A, "ng-pub", "NG");
   ok(su.status === 200 && su.data.user.currency === "NGN" && su.data.user.phone === "+2348012345678" && !su.data.user.emailVerified && su.data.user.role === "PUBLISHER", "signup (NG → NGN, E.164 phone, unverified)", su.data);
   ok(!JSON.stringify(su.data).includes("passwordHash"), "password hash not exposed");
+  ok(!!(await db.user.findUnique({ where: { email: `ng-pub.${stamp}@example.com` } }))?.termsAcceptedAt, "the time the Privacy Policy & Terms were accepted is recorded");
+  const nt = await new Client().req("POST", "/api/auth/signup", { firstName: "No", lastName: "Terms", email: `noterms.${stamp}@example.com`, password: pw, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8012345678" }, { headers: { "x-forwarded-for": "203.0.113.78" } }); // separate address: keeps the sign-up rate limit of the other tests intact
+  ok(nt.status === 400 && nt.data.fields?.acceptTerms && !(await db.user.findUnique({ where: { email: `noterms.${stamp}@example.com` } })), "sign-up without accepting the Privacy Policy & Terms is refused server-side", nt.data);
   ok((await signup(new Client(), "ng-pub", "NG")).status === 409, "duplicate email rejected");
   ok((await A.get("/api/books")).status === 403, "unverified publisher is blocked server-side from publisher APIs");
   ok((await A.post("/api/books", new FormData())).status === 403, "unverified publisher cannot upload");

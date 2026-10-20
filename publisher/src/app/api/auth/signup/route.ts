@@ -14,6 +14,7 @@ export const POST = route(async (req) => {
     throw new ApiError(409, "A publisher account with this email already exists. Try signing in.", { email: "This email is already registered." });
   const user = await db.user.create({
     data: {
+      termsAcceptedAt: new Date(),
       emailVerifiedAt: !process.env.SMTP_HOST && process.env.DEV_AUTO_VERIFY === "true" ? new Date() : null, email: d.email, firstName: d.firstName, lastName: d.lastName, publisherName: `${d.firstName} ${d.lastName}`.trim(),
       passwordHash: await hashPassword(d.password), country: d.country, currency: currencyForCountry(d.country),
       phoneCountry: d.phoneCountry, phone: normalizePhone(d.phone, d.phoneCountry),

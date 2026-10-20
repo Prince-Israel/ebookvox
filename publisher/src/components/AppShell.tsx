@@ -1,4 +1,5 @@
 "use client";
+import { LegalFooter } from "./LegalLinks";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -111,7 +112,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Logo size={30} />
           <Link href="/notifications" aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"} className="relative grid size-11 place-items-center rounded-full hover:bg-surface2"><Bell className="size-6" />{unread > 0 && <span className="absolute right-1 top-1 grid min-w-5 place-items-center rounded-full bg-accent px-1 text-[11px] font-bold leading-5 text-accent-fg ring-2 ring-bg">{unread > 99 ? "99+" : unread}</span>}</Link>
         </header>
-        <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 pb-16 pt-6 sm:px-6 lg:px-10 lg:pt-10">{children}</main>
+        <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 pb-16 pt-6 sm:px-6 lg:px-10 lg:pt-10">{children}<LegalFooter className="mt-12" /></main>
       </div>
 
       {open && (
