@@ -1,8 +1,23 @@
 apply plugin: 'com.android.application'
 
+// Release signing: android/keystore.properties (git-ignored) holds storeFile, storePassword, keyAlias, keyPassword. Without it the release build is unsigned.
+def keystoreProps = new Properties()
+def keystoreFile = rootProject.file("keystore.properties")
+if (keystoreFile.exists()) keystoreFile.withInputStream { keystoreProps.load(it) }
+
 android {
     namespace "app.ebookvox.reader"
     compileSdk rootProject.ext.compileSdkVersion
+    signingConfigs {
+        if (keystoreProps.getProperty("storeFile")) {
+            release {
+                storeFile file(keystoreProps.getProperty("storeFile"))
+                storePassword keystoreProps.getProperty("storePassword")
+                keyAlias keystoreProps.getProperty("keyAlias")
+                keyPassword keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
     defaultConfig {
         // AdMob app id: Google's test id unless ADMOB_ANDROID_APP_ID is set (gradle property or environment variable)
         manifestPlaceholders = [admobAppId: (project.findProperty("ADMOB_ANDROID_APP_ID") ?: System.getenv("ADMOB_ANDROID_APP_ID") ?: "ca-app-pub-3940256099942544~3347511713")]
@@ -20,6 +35,7 @@ android {
     }
     buildTypes {
         release {
+            if (keystoreProps.getProperty("storeFile")) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

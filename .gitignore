@@ -36,3 +36,9 @@ data/cover-cache/
 .DS_Store
 upload/
 .next-dev/
+
+# Android release signing (never commit)
+android/keystore.properties
+*.jks
+*.keystore
+*.aab
