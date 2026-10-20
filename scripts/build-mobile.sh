@@ -32,7 +32,7 @@ Ebookvox Reader mobile apps
 Android: version $VER (build $BUILD)   <- Ebookvox-Reader-android.apk
 iPhone:  version $VER (build $BUILD)   <- Ebookvox-Reader-ios-unsigned.ipa / -simulator.zip
 Built:   $(date -u '+%Y-%m-%d %H:%M UTC')
-Server:  $URL  (the Reader must be running there: bash scripts/start-all.sh — and the phone on the same network)
+Server:  $URL  $( [[ "$URL" == https://* ]] && echo "(live site — works on any network)" || echo "(the Reader must be running there: bash scripts/start-all.sh — and the phone on the same network)")
 APK SHA-256: $(shasum -a 256 downloads/Ebookvox-Reader-android.apk | cut -d' ' -f1)
 
 If the app can't reach the server it shows a "Connect to internet" page with the address it tried.
