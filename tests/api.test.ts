@@ -519,6 +519,17 @@ async function main() {
     let limited = 0;
     for (let i = 0; i < 12; i++) { const r = await fetch(BASE + "/api/tts/demo", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.53" }, body: JSON.stringify({ text: `Sample number ${i} for the limit.`, voice: "en-NG-EzinneNeural" }) }); if (r.status === 429) limited++; }
     ok(limited >= 1, "the free sample is rate-limited per address");
+    // the blog
+    const bi = (await (await fetch(BASE + "/blog")).text()).replace(/<!-- -->/g, "");
+    const slugs = ["how-to-turn-a-pdf-into-audio", "best-free-classic-audiobooks", "listen-to-ebooks-while-commuting", "text-to-speech-for-students", "ebooks-audiobooks-text-to-speech"];
+    ok(slugs.every((sl) => bi.includes(`href="/blog/${sl}"`)) && sm.includes("/blog/best-free-classic-audiobooks") && sm.includes("/blog</loc>"), "the blog lists all five articles, and the sitemap includes them");
+    const bpost = await fetch(BASE + "/blog/how-to-turn-a-pdf-into-audio"); const bph = (await bpost.text()).replace(/<!-- -->/g, "");
+    const bld = [...bph.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map((m) => JSON.parse(m[1])).flat();
+    ok(bpost.status === 200 && /<h1[^>]*>How to turn a PDF into audio/.test(bph) && bld.some((x: any) => x["@type"] === "BlogPosting" && x.datePublished === "2026-10-30") && bld.some((x: any) => x["@type"] === "FAQPage") && bph.includes('rel="canonical" href="' + BASE + '/blog/how-to-turn-a-pdf-into-audio"') && bph.includes('href="/pdf-to-audio"'), "an article is server-rendered with Article and FAQ data, a canonical address and links to the tool page");
+    const cls = (await (await fetch(BASE + "/blog/best-free-classic-audiobooks")).text()).replace(/<!-- -->/g, "");
+    const pnp = await db.book.findFirst({ where: { status: "APPROVED", isFree: true, title: { startsWith: "Pride and Prejudice" } } });
+    ok(!pnp || (cls.includes(`href="/books/${pnp.id}"`) && cls.includes("Free to read and listen to right now")), "the classics article shows cards for the free books that really exist");
+    ok((await fetch(BASE + "/blog/no-such-article")).status === 404, "an unknown article is a 404");
     const priv = await fetch(BASE + "/library", { redirect: "manual" });
     ok(/noindex/.test(priv.headers.get("x-robots-tag") ?? "") && /noindex/.test((await fetch(BASE + "/sign-in")).headers.get("x-robots-tag") ?? ""), "private and sign-in pages tell search engines not to index them");
   }

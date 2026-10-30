@@ -4,6 +4,7 @@
 - **Every book has its own page** (`/books/<id>`), server-rendered: a unique title and description, the cover, a canonical address, share previews (Open Graph and Twitter cards) and structured data (schema.org `Book` and breadcrumbs).
 - **Category pages** (`/category`, `/category/<name>`) and **author pages** (`/authors/<name>`): crawlable lists of books with paging, breadcrumbs and an item list in structured data.
 - **Tool pages** for the searches people make: `/text-to-speech` and `/pdf-to-audio`. Visitors can hear a free 400-character sample without an account, and the pages carry FAQ structured data.
+- **A blog** at `/blog` with five articles (PDF to audio, classic books to listen to, listening while commuting, text to speech for students, ebooks vs audiobooks vs text to speech). Each links to the tool pages and shows cards for the free books that really exist. To add a post, add an entry to `src/lib/blog.ts` (newest first); it appears in the blog and the sitemap automatically.
 - **`/sitemap.xml`**: every public page, category, author with 2+ books, and every approved book (refreshed hourly).
 - **`/robots.txt`**: blocks the API and private screens (library, wallet, orders, settings, sign-in, reader), allows book covers, and points to the sitemap. Private and sign-in pages also send `X-Robots-Tag: noindex`.
 - Home, Books and Subscribe have their own titles, descriptions and canonical addresses; Home also carries Organization, WebSite and SoftwareApplication data.

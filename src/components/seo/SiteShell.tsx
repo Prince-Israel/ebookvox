@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { LegalFooter } from "@/components/LegalFooter";
 
-const NAV = [["/books", "Books"], ["/category", "Categories"], ["/text-to-speech", "Text to speech"], ["/pdf-to-audio", "PDF to audio"]] as const;
+const NAV = [["/books", "Books"], ["/category", "Categories"], ["/text-to-speech", "Text to speech"], ["/pdf-to-audio", "PDF to audio"], ["/blog", "Blog"]] as const;
 
 /** A light public page frame (header, content, footer) for the pages search engines land on. Everything is server-rendered. */
 export function SiteShell({ children }: { children: React.ReactNode }) {
