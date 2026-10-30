@@ -10,7 +10,7 @@ FILES=("*.db" "*.db-journal" ".env" ".env.local" "*.log" ".DS_Store" "*.tsbuildi
 COMMON=(); for d in "${EX[@]}"; do COMMON+=(-x "$d/*" -x "*/$d/*"); done; for f in "${FILES[@]}"; do COMMON+=(-x "$f" -x "*/$f"); done
 
 # Reader = the repo root, minus the other two apps, the native projects and local tooling
-zip -qr "$OUT/ebookvox-reader.zip" . "${COMMON[@]}" -x "publisher/*" -x "admin/*" -x "android/*" -x "ios/*" -x "downloads/*" -x "mobile-www/*" -x "tests/*" -x "scripts/*" -x "docs/*" -x "app-screenshots/*" -x "landing/*" -x "resources/*"
+zip -qr "$OUT/ebookvox-reader.zip" . "${COMMON[@]}" -x "publisher/*" -x "admin/*" -x "android/*" -x "ios/*" -x "downloads/*" -x "mobile-www/*" -x "tests/*" -x "scripts/*" -x "docs/*" -x "app-screenshots/*" -x "catalogue/*" -x "landing/*" -x "resources/*"
 for app in publisher admin; do
   (cd "$app" && zip -qr "../$OUT/ebookvox-$app.zip" . "${COMMON[@]}" -x "tests/*")
 done

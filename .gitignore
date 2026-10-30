@@ -42,3 +42,6 @@ android/keystore.properties
 *.jks
 *.keystore
 *.aab
+
+# exported library files (large)
+catalogue/
