@@ -18,8 +18,8 @@ Fetched live from API.Bible by `GET /api/bible/chapter?version=NIV&book=43&chapt
 ## YouVersion Platform (BSB, WEB, TPT)
 Same route, `YOUVERSION_APP_KEY` in the server `.env` (sent as `X-YVP-App-Key` to `api.youversion.com`). BSB and WEB (public domain, red letters) work now. The key's licensed list is only open-licence Bibles; NIV, AMP, NASB and TPT show as "unlockable" until their publisher licence is accepted in the platform portal (https://platform.youversion.com). Once TPT is accepted, set `available: true` for it in `src/lib/bible.ts`. Check what a key can read: `curl -H "X-YVP-App-Key: $KEY" "https://api.youversion.com/v1/bibles?language_ranges[]=en&all_available=true"`. Copyright lines come from each Bible's metadata and must stay visible. Terms for commercial use are not public: read each Bible's licence in the portal.
 
-## Still locked
-NKJV, NLT, AMPC and Mirror are on neither service's plan for these keys (NKJV and NLT need their publishers' approval); TPT waits for the YouVersion licence. They show as "licence needed".
+## Not offered yet
+NKJV, NLT, AMPC, TPT and Mirror are removed from the picker because neither key can read them. To add one later: get access (publisher approval, or accept its licence in the YouVersion portal for TPT), then add an entry to `BIBLE_VERSIONS` in `src/lib/bible.ts` with its `apiId` (API.Bible) or `yvId` (YouVersion) — YouVersion's TPT id is 1849.
 
 ## Listen
 "Listen to this chapter" (and "Listen from verse N" in the verse sheet) reads the chapter with the app's own voices through `openDoc` (kind `bible`), one verse per passage, highlighting the verse being read and moving on to the next chapter by itself. Same rules as books: sign-in required, reward video for free listeners, speed and voice from the player (`Voice & speed`). Works for every version on the page.
