@@ -1,87 +1,57 @@
-"use client";
-import Link from "next/link";
-import { use, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, Building2, Clock, Lock, Tag } from "lucide-react";
-import { Async, Badge, Banner, Button, Card, Skeleton, useToast } from "@/components/ui";
-import { Cover } from "@/components/Cover";
-import { openFreeBook, type BookItem } from "@/components/BookCard";
-import { api, ApiFailure, useApi } from "@/lib/client";
-import { useAuth } from "@/components/UserContext";
-import { AuthPrompt } from "@/components/AuthPrompt";
-import { formatMoney } from "@/lib/money";
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { BookDetails, type BookDetail } from "@/components/BookDetails";
+import { JsonLd } from "@/components/JsonLd";
+import { basePrice, loadBook, serializeBook } from "@/lib/books";
+import { abs, bookDescriptionTag, bookTitleTag, displayAuthor, DEFAULT_OG, SITE_NAME, slugify } from "@/lib/seo";
 
-type Detail = {
-  book: BookItem & { description: string; publisher: string; chapterCount: number; totalChars: number; language: string };
-  owned: boolean; progress: { percent: number } | null; pendingReference: string | null; canBuy: boolean;
-};
+type P = { params: Promise<{ id: string }> };
+const approved = async (id: string) => { const b = await loadBook(id); return b && b.status === "APPROVED" ? b : null; };
 
-export default function BookDetails({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  const router = useRouter();
-  const toast = useToast();
-  const state = useApi<Detail>(`/api/books/${id}`, "We couldn't load this book. Please try again.");
-  const [busy, setBusy] = useState(false);
-  const { user } = useAuth();
-  const [prompt, setPrompt] = useState(false);
+export async function generateMetadata({ params }: P): Promise<Metadata> {
+  const b = await approved((await params).id);
+  if (!b) return { title: "Book not found", robots: { index: false } };
+  const url = abs(`/books/${b.id}`);
+  const title = bookTitleTag(b), description = bookDescriptionTag(b);
+  const image = b.coverUrl ? abs(`/api/books/${b.id}/cover`) : abs(DEFAULT_OG);
+  return {
+    title: { absolute: title },
+    description,
+    alternates: { canonical: url },
+    openGraph: { type: "book", url, title, description, siteName: SITE_NAME, images: [{ url: image, alt: `Cover of ${b.title}` }] },
+    twitter: { card: b.coverUrl ? "summary" : "summary_large_image", title, description, images: [image] },
+  };
+}
 
-  async function readNow() {
-    if (!user) return setPrompt(true);
-    setBusy(true);
-    try {
-      await openFreeBook(id);
-      router.push(`/read/${id}`);
-    } catch (e) {
-      toast((e as ApiFailure).message, "error");
-      setBusy(false);
-    }
-  }
-
+export default async function BookPage({ params }: P) {
+  const { id } = await params;
+  const b = await approved(id);
+  if (!b) notFound();
+  const url = abs(`/books/${b.id}`);
+  // What the server renders for everyone (the signed-in view is refreshed in the browser): the book in US dollars, not owned.
+  const sb = await serializeBook(b, "USD");
+  const initial: BookDetail = { book: { ...sb, owned: false }, owned: false, progress: null, pendingReference: null, canBuy: b.isFree || !!basePrice(b) };
+  const author = displayAuthor(b.author);
+  const price = sb.price ? { price: (sb.price.amountMinor / 100).toFixed(2), priceCurrency: sb.price.currency } : null;
   return (
-    <div>
-      <Link href="/books" className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-muted hover:text-fg"><ArrowLeft className="size-4" /> Books</Link>
-      <Async state={state} skeleton={<div className="grid gap-8 md:grid-cols-[18rem_1fr]"><Skeleton className="aspect-[2/3]" /><div className="space-y-4"><Skeleton className="h-10 w-3/4" /><Skeleton className="h-6 w-1/3" /><Skeleton className="h-40" /></div></div>}>
-        {({ book: b, owned, progress, pendingReference, canBuy }) => {
-          const minutes = Math.round(b.totalChars / 5 / 230);
-          return (
-            <div className="anim-up grid gap-8 md:grid-cols-[18rem_1fr] md:gap-12">
-              <div className="mx-auto w-full max-w-[16rem] md:mx-0 md:max-w-none"><Cover title={b.title} author={b.author} hue={b.coverHue} url={b.coverUrl} /></div>
-              <div>
-                <div className="mb-3 flex flex-wrap gap-2">
-                  <Badge tone={b.isFree ? "success" : "accent"}>{b.isFree ? "FREE" : "PAID"}</Badge>
-                  <Badge><Tag className="mr-1 size-3" />{b.category}</Badge>
-                </div>
-                <h1 className="text-4xl font-semibold leading-tight sm:text-5xl">{b.title}</h1>
-                <p className="mt-2 text-xl text-muted">by {b.author}</p>
-                <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted">
-                  <span className="flex items-center gap-2"><Building2 className="size-4" /> Publisher: <strong className="text-fg">{b.publisher}</strong></span>
-                  <span className="flex items-center gap-2"><BookOpen className="size-4" /> {b.chapterCount} chapters</span>
-                  <span className="flex items-center gap-2"><Clock className="size-4" /> ~{minutes >= 60 ? `${Math.round(minutes / 6) / 10} hrs` : `${minutes} min`} to listen</span>
-                </div>
-                <Card className="mt-6 flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm text-muted">{b.isFree ? "Price" : `Price (${b.price?.currency ?? ""})`}</p>
-                    <p className="font-serif text-3xl font-semibold">{b.isFree ? "FREE" : b.price ? formatMoney(b.price.amountMinor, b.price.currency) : "Not available"}</p>
-                    {!b.isFree && b.price && <p className="mt-0.5 text-xs text-muted">Shown in your local currency at today's international exchange rate.</p>}
-                  </div>
-                  {owned ? (
-                    <Button size="lg" onClick={() => router.push(`/read/${id}`)}>{progress && progress.percent > 0 ? `Continue Reading · ${Math.round(progress.percent)}%` : "Read Now"}</Button>
-                  ) : b.isFree ? (
-                    <Button size="lg" loading={busy} onClick={readNow}>Read Now</Button>
-                  ) : (
-                    <Button size="lg" disabled={!canBuy} onClick={() => (user ? router.push(`/checkout/${id}`) : setPrompt(true))}><Lock className="size-5" /> Buy Book</Button>
-                  )}
-                </Card>
-                {pendingReference && !owned && <div className="mt-4"><Banner tone="warn" action={<Link href={`/payment/callback?reference=${pendingReference}`}><Button size="sm" variant="secondary">Check payment</Button></Link>}>You have a payment in progress for this book.</Banner></div>}
-                <h2 className="mb-2 mt-8 text-2xl font-semibold">About this book</h2>
-                <p className="whitespace-pre-line leading-relaxed text-muted">{b.description}</p>
-                <p className="mt-6 text-sm text-muted">Read it right here in Ebookvox — and listen with 30+ voices.</p>
-              </div>
-            </div>
-          );
-        }}
-      </Async>
-      <AuthPrompt open={prompt} onClose={() => setPrompt(false)} next={`/books/${id}`} reason="Create a free account to read this book or buy it — your library and reading progress are saved to your account." />
-    </div>
+    <>
+      <JsonLd data={[
+        {
+          "@context": "https://schema.org", "@type": "Book", "@id": `${url}#book`, url, name: b.title, description: b.description.slice(0, 1000),
+          author: { "@type": "Person", name: author }, inLanguage: b.language, genre: b.category, isAccessibleForFree: b.isFree,
+          publisher: { "@type": "Organization", name: b.publisher.name },
+          ...(b.coverUrl ? { image: abs(`/api/books/${b.id}/cover`) } : {}),
+          potentialAction: { "@type": "ReadAction", target: url },
+          offers: { "@type": "Offer", url, availability: "https://schema.org/InStock", ...(b.isFree ? { price: "0", priceCurrency: "USD" } : price ?? {}) },
+        },
+        { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: abs("/home") },
+          { "@type": "ListItem", position: 2, name: "Books", item: abs("/books") },
+          { "@type": "ListItem", position: 3, name: b.category, item: abs(`/category/${slugify(b.category)}`) },
+          { "@type": "ListItem", position: 4, name: b.title, item: url },
+        ] },
+      ]} />
+      <BookDetails id={b.id} initial={initial} />
+    </>
   );
 }

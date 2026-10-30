@@ -10,9 +10,13 @@ import { OfflineBanner } from "@/components/OfflineBanner";
 import { InstallBootstrap } from "@/components/InstallApp";
 
 export const metadata: Metadata = {
+  metadataBase: new URL((process.env.APP_URL ?? "http://localhost:3230").replace(/\/$/, "")),
   title: { default: "Ebookvox — Your Words. Our Voice.", template: "%s · Ebookvox" },
   description: "Read, listen and discover books. Turn any text or document into natural-sounding speech.",
   applicationName: "Ebookvox",
+  openGraph: { type: "website", siteName: "Ebookvox", locale: "en", images: [{ url: "/og-default.png", width: 1200, height: 630, alt: "Ebookvox: your words, our voice" }] },
+  twitter: { card: "summary_large_image", images: ["/og-default.png"] },
+  verification: { google: process.env.GOOGLE_SITE_VERIFICATION || undefined, other: process.env.BING_SITE_VERIFICATION ? { "msvalidate.01": process.env.BING_SITE_VERIFICATION } : undefined },
   manifest: "/manifest.webmanifest",
   icons: { icon: "/favicon.png", apple: "/icons/icon-180.png" },
   appleWebApp: { capable: true, title: "Ebookvox", statusBarStyle: "black-translucent" },

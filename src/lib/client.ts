@@ -32,10 +32,10 @@ export async function api<T = any>(url: string, init: RequestInit & { json?: unk
   return data as T;
 }
 
-export function useApi<T>(url: string | null, errorMessage = "We couldn't load this. Please try again.") {
-  const [data, setData] = useState<T | null>(null);
+export function useApi<T>(url: string | null, errorMessage = "We couldn't load this. Please try again.", initial: T | null = null) {
+  const [data, setData] = useState<T | null>(initial); // `initial` is what the server already rendered; it is refreshed for the signed-in viewer right after
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(!!url);
+  const [loading, setLoading] = useState(!!url && !initial);
   const seq = useRef(0);
 
   const load = useCallback(async () => {

@@ -4,6 +4,7 @@ import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import sharp from "sharp";
 import { voiceForCountry } from "../src/lib/voices";
+import { displayAuthor, slugify } from "../src/lib/slug";
 import { buildAuthUrl, safeNext } from "../src/lib/oauth";
 import { sha256 } from "../src/lib/auth";
 
@@ -482,6 +483,44 @@ async function main() {
     const other = new Client();
     await other.req("POST", "/api/auth/signup", { firstName: "Other", lastName: "Person", email: `other.${stamp}@example.com`, password: pw, acceptTerms: true, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8012345678" }, { headers: { "x-forwarded-for": "203.0.113.91" } });
     ok((await other.post(`/api/documents/${docId}/audio`, { voice: "en-NG-EzinneNeural", from: 0 })).status === 404, "nobody else can download someone's document audio");
+  }
+
+  section("SEO: robots, sitemap, book pages, structured data, tool pages");
+  {
+    const rb = await (await fetch(BASE + "/robots.txt")).text();
+    ok(/Sitemap: \S+\/sitemap\.xml/.test(rb) && /Disallow: \/library/.test(rb) && /Disallow: \/api\//.test(rb) && /Disallow: \/read\//.test(rb) && /Allow: \/api\/books\/\*\/cover/.test(rb), "robots.txt blocks private pages and the API, allows covers, and points to the sitemap", rb.slice(0, 300));
+    const book = await db.book.findFirst({ where: { status: "APPROVED", isFree: true }, orderBy: { createdAt: "asc" } });
+    const sm = await (await fetch(BASE + "/sitemap.xml")).text();
+    ok(sm.includes(`/books/${book!.id}`) && sm.includes("/category/") && sm.includes("/text-to-speech") && sm.includes("/pdf-to-audio") && !sm.includes("/library") && !sm.includes("/profile"), "sitemap.xml lists the books, categories and tool pages, and none of the private pages");
+    const bp = await fetch(BASE + `/books/${book!.id}`);
+    const bh = await bp.text();
+    ok(bp.status === 200 && bh.includes(`<title>`) && bh.includes(book!.title.replace(/\s*[;:].*$/, "")) && /<meta name="description" content="[^"]{60,}/.test(bh) && bh.includes(`rel="canonical" href="${BASE}/books/${book!.id}"`), "a book page is server-rendered with its own title, description and canonical address");
+    ok(/property="og:title"/.test(bh) && /property="og:image"/.test(bh) && /name="twitter:card"/.test(bh), "a book page has share previews (Open Graph and Twitter cards)");
+    const ld = [...bh.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map((m) => JSON.parse(m[1])).flat();
+    const bookLd = ld.find((x: any) => x["@type"] === "Book");
+    ok(bookLd?.name === book!.title && bookLd.isAccessibleForFree === true && bookLd.author?.name && ld.some((x: any) => x["@type"] === "BreadcrumbList"), "a book page carries Book and breadcrumb structured data");
+    ok(/<h1[^>]*>[^<]*(Pride|Alice|Sherlock|Frankenstein|Time Machine|Art of War|[A-Za-z])/.test(bh) && bh.includes(book!.description.slice(0, 40)), "the book's name and description are in the HTML itself, not loaded later");
+    ok((await fetch(BASE + "/books/does-not-exist")).status === 404, "an unknown book page is a real 404");
+    const cslug = slugify(book!.category);
+    const cp = await fetch(BASE + `/category/${cslug}`); const ch = (await cp.text()).replace(/<!-- -->/g, "");
+    const firstInCat = await db.book.findFirst({ where: { status: "APPROVED", category: book!.category }, orderBy: [{ isFree: "desc" }, { createdAt: "desc" }] });
+    ok(cp.status === 200 && ch.includes(`href="/books/${firstInCat!.id}"`) && /<h1[^>]*>[^<]*books to read and listen/.test(ch) && ch.includes("ItemList"), "a category page lists its books as links, with a list in structured data");
+    const aslug = slugify(displayAuthor(book!.author));
+    const ap = await fetch(BASE + `/authors/${aslug}`); const ah = await ap.text();
+    ok(ap.status === 200 && ah.includes(`href="/books/${book!.id}"`), "an author page lists the author's books");
+    ok((await fetch(BASE + "/category/no-such-category")).status === 404 && (await fetch(BASE + "/authors/no-such-author")).status === 404, "unknown category and author pages are 404s");
+    const tp = await (await fetch(BASE + "/text-to-speech")).text();
+    ok(tp.includes("FAQPage") && tp.includes("Listen to the sample") && /<h1[^>]*>[^<]*text to speech/i.test(tp) && (await (await fetch(BASE + "/pdf-to-audio")).text()).includes("Upload your PDF free"), "the text-to-speech and PDF-to-audio pages are public, with questions and answers for search engines");
+    const demo = await fetch(BASE + "/api/tts/demo", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.51" }, body: JSON.stringify({ text: "Hello from Ebookvox, a free sample.", voice: "en-NG-EzinneNeural" }) });
+    ok(demo.status === 200 && /^audio\//.test(demo.headers.get("content-type") ?? "") && (await demo.arrayBuffer()).byteLength > 2000, "a visitor can hear a free sample without an account");
+    const long = await fetch(BASE + "/api/tts/demo", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.52" }, body: JSON.stringify({ text: "x".repeat(401), voice: "en-NG-EzinneNeural" }) });
+    const badv = await fetch(BASE + "/api/tts/demo", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.52" }, body: JSON.stringify({ text: "Hello there", voice: "nope" }) });
+    ok(long.status === 400 && badv.status === 400, "the free sample is limited to 400 characters and the known voices");
+    let limited = 0;
+    for (let i = 0; i < 12; i++) { const r = await fetch(BASE + "/api/tts/demo", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.53" }, body: JSON.stringify({ text: `Sample number ${i} for the limit.`, voice: "en-NG-EzinneNeural" }) }); if (r.status === 429) limited++; }
+    ok(limited >= 1, "the free sample is rate-limited per address");
+    const priv = await fetch(BASE + "/library", { redirect: "manual" });
+    ok(/noindex/.test(priv.headers.get("x-robots-tag") ?? "") && /noindex/.test((await fetch(BASE + "/sign-in")).headers.get("x-robots-tag") ?? ""), "private and sign-in pages tell search engines not to index them");
   }
 
   section("Reader emails: continue where you stopped + new books");

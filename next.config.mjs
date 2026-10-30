@@ -8,6 +8,15 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // personal and sign-in screens must never appear in search results
+        source: "/:path(library|profile|wallet|orders|settings|support|notifications|checkout|payment|read|sign-in|sign-up|forgot-password|reset-password|verify-email|admin)/:rest*",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+      {
+        source: "/:path(library|profile|wallet|orders|settings|support|notifications|payment|sign-in|sign-up|forgot-password|reset-password|verify-email|admin)",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+      {
         source: "/(.*)",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },

@@ -22,7 +22,7 @@ const pw = "Sup3rSecret!";
 // Record every Audio element so tests can inspect playback state.
 // In the general tests the reward video is watched for the listener at once (the dedicated ad tests below click it themselves).
 const AUTO_WATCH = `(() => { setInterval(() => { const d = document.querySelector('[role=dialog][aria-label="Watch a video to listen"]'); const b = d && [...d.querySelectorAll("button")].find((x) => /^\\s*Watch video/.test(x.textContent || "")); if (b && !b.disabled) b.click(); }, 150); })();`;
-const INIT = `(() => { window.__name = (f) => f; window.__audios = []; window.__cur = null; const A = window.Audio; window.Audio = function(...a){ const el = new A(...a); window.__audios.push(el); el.addEventListener('play', () => { if (!el.src.startsWith('data:')) window.__cur = el; }); return el; }; window.Audio.prototype = A.prototype; })();`;
+const INIT = `(() => { window.__name = (f) => f; window.__audios = []; window.__cur = null; const A = window.Audio; window.Audio = function(...a){ const el = new A(...a); window.__audios.push(el); el.addEventListener('play', () => { if (!el.src.startsWith('data:')) window.__cur = el; }); return el; }; window.Audio.prototype = A.prototype; const P = A.prototype.play; A.prototype.play = function(){ if (!this.src.startsWith('data:') && !window.__playStack) window.__playStack = new Error().stack; return P.apply(this, arguments); }; })();`;
 const audioState = (p: Page) => p.evaluate(() => { const a = (window as any).__cur as HTMLAudioElement | null; return a ? { paused: a.paused, t: a.currentTime, rate: a.playbackRate, src: a.src, vol: a.volume, dur: a.duration } : null; });
 
 async function overflow(p: Page, label: string) {
@@ -270,8 +270,9 @@ async function main() {
     await p.getByText(expect).first().waitFor({ timeout: 30000 });
     await p.waitForFunction(() => /(Paused|Reading) · [\d.]+x/.test(document.body.innerText), null, { timeout: 40000 });
     ok(true, `${path.extname(file).toUpperCase()} → text extracted, audio prepared`);
-    await p.getByRole("button", { name: "Play", exact: true }).first().click();
-    await p.waitForFunction(() => { const a = (window as any).__cur; return a && !a.paused && !a.src.startsWith("data:"); }, null, { timeout: 30000 });
+    // after the reward video the file starts by itself; if it is still waiting, press Play
+    const isPlaying = () => p.waitForFunction(() => { const a = (window as any).__cur; return a && !a.paused && !a.src.startsWith("data:"); }, null, { timeout: 15000 });
+    if (!(await isPlaying().then(() => true).catch(() => false))) { await p.getByRole("button", { name: "Play", exact: true }).first().click(); await isPlaying(); }
     ok(true, `${path.extname(file).toUpperCase()} plays immediately`);
     await p.getByRole("button", { name: "Pause", exact: true }).first().click();
   }
@@ -500,6 +501,15 @@ async function main() {
       await iph.close();
     }
     ok((await w.getByRole("link", { name: /Publish your books/ }).first().getAttribute("href"))?.endsWith("/sign-up") === true, "guests also see the author/publisher invitation");
+    // the free sample on the text-to-speech page works for a visitor with no account
+    await w.goto(BASE + "/text-to-speech");
+    const demoResp = w.waitForResponse((r) => r.url().includes("/api/tts/demo"), { timeout: 60000 });
+    await w.getByRole("button", { name: /Listen to the sample/ }).click();
+    ok((await demoResp).status() === 200, "the free sample on the text-to-speech page plays for a visitor without an account");
+    await w.getByText(/Like it\?/).waitFor({ timeout: 15000 }).catch(() => {});
+    ok(await w.getByRole("link", { name: "Create a free account" }).last().isVisible() && (await w.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "PDF to audio" }).count()) === 1, "the page invites them to create an account, and links to the other tool page");
+    await w.goto(BASE + "/category");
+    ok(await w.getByRole("heading", { name: "Browse books by category" }).isVisible() && (await w.locator("a[href^='/category/']").count()) > 3, "the categories page links to every category");
     await w.goto(BASE + "/sign-in");
     await w.getByRole("link", { name: /Get Ebookvox on Google Play/ }).first().waitFor({ timeout: 15000 }).catch(() => {});
     ok(await w.getByRole("link", { name: /Get Ebookvox on Google Play/ }).first().isVisible(), "the sign-in page shows the app badges");
@@ -542,19 +552,20 @@ async function main() {
     await gate.getByRole("button", { name: "Watch video" }).click();
     await gate.getByText("Watch the whole video to unlock listening.").waitFor({ timeout: 15000 });
     await gp.waitForTimeout(800);
-    ok(await gate.isVisible() && (await gp.evaluate(() => { const a = (window as any).__cur; return !a || a.paused || a.src.startsWith("data:"); })), "skipping the video unlocks nothing: the voice stays silent and the reward asks again");
+    const afterSkip = { stack: await gp.evaluate(() => (window as any).__playStack), visible: await gate.isVisible(), audio: await gp.evaluate(() => { const a = (window as any).__cur; return { none: !a, paused: a?.paused, data: a?.src?.startsWith("data:"), t: a?.currentTime }; }) };
+    ok(afterSkip.visible && (afterSkip.audio.none || afterSkip.audio.paused || afterSkip.audio.data), "skipping the video unlocks nothing: the voice stays silent and the reward asks again", afterSkip);
     await gp.evaluate(() => { (window as any).__adMode = "done"; });
     await gate.getByRole("button", { name: "Watch video" }).click();
     await speaking();
     await gp.waitForFunction(() => (window as any).__ads?.started >= 2, null, { timeout: 10000 }).catch(() => {});
-    ok((await adCount()) === 2 && (await gate.count()) === 0, "watching the video to the end is the reward: the voice starts reading", await gp.evaluate(() => (window as any).__ads));
+    ok((await adCount()) === 2 && (await gate.count()) === 0, "watching the video to the end is the reward: the voice starts reading", { ads: await gp.evaluate(() => (window as any).__ads), gates: await gate.count() });
     await gp.getByRole("button", { name: "Pause", exact: true }).first().click();
     await gp.getByRole("button", { name: "Play", exact: true }).first().click();
     await gp.waitForFunction(() => (window as any).__cur?.paused === false, null, { timeout: 20000 });
     ok((await adCount()) === 2 && (await gate.count()) === 0, "pausing and resuming within the same listening session shows no second video");
     await gp.getByRole("button", { name: "Pause", exact: true }).first().click();
     await gp.waitForFunction(() => (window as any).__cur?.paused === true, null, { timeout: 10000 });
-    await gp.waitForTimeout(500);
+    await gp.waitForTimeout(3300); // (a reward that was just granted is not asked for again within a few seconds)
     await gp.evaluate(() => { Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true }); document.dispatchEvent(new Event("visibilitychange")); Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true }); document.dispatchEvent(new Event("visibilitychange")); });
     await gate.waitFor({ timeout: 15000 });
     ok(true, "after the listener leaves the app and comes back, the reward comes up again");

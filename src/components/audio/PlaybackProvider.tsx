@@ -101,9 +101,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const [reward, setReward] = useState<{ open: boolean; watching: boolean; note: string | null }>({ open: false, watching: false, note: null });
   const rewardWait = useRef<Promise<boolean> | null>(null);
   const rewardDone = useRef<((ok: boolean) => void) | null>(null);
+  const grantedAt = useRef(0);
   const ensureAd = useCallback((force = false): Promise<boolean> => {
     if (adRef.current.adFree) return Promise.resolve(true);
-    if (!force && !needsAd()) return Promise.resolve(true);
+    if (!force && (!needsAd() || Date.now() - grantedAt.current < 3000)) return Promise.resolve(true); // (a reward just granted is not asked for again straight away)
     needAd.current = true;
     if (rewardWait.current) return rewardWait.current;
     setReward({ open: true, watching: false, note: null });
@@ -125,9 +126,12 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     await new Promise((r) => setTimeout(r, 300));
     if (res === "skipped") { setReward({ open: true, watching: false, note: "Watch the whole video to unlock listening." }); return; }
     needAd.current = false;
+    grantedAt.current = Date.now();
     closeReward(true);
     toast("Reward unlocked. Enjoy listening!");
   }, [closeReward]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Nothing is heard while the reward is still to be earned: if narration ever starts under the open gate, stop it at once
+  useEffect(() => { if (reward.open && narrating) engine.pause(); }, [reward.open, narrating]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const left = () => {
       if (document.visibilityState === "hidden") needAd.current = true;
@@ -143,10 +147,13 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (!adFree && cfg?.ads.videoTagUrl && !isNativeApp()) { const el = document.createElement("link"); el.rel = "preload"; el.as = "script"; el.href = "https://imasdk.googleapis.com/js/sdkloader/ima3.js"; document.head.appendChild(el); } }, [adFree, cfg]);
 
   // Starts the voice once the ad is over; if the web view was still waking up and the first attempt didn't take, try once more.
+  // (A pause pressed in the meantime cancels the retry, so the voice never restarts by itself.)
+  const retryToken = useRef(0);
   const startAfterAd = useCallback(async () => {
+    const mine = ++retryToken.current;
     await engine.play();
     await new Promise((r) => setTimeout(r, 1500));
-    if (!adRef.current.playing) await engine.play();
+    if (mine === retryToken.current && !adRef.current.playing) await engine.play();
   }, [engine]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- reading progress (books only) ----
@@ -178,6 +185,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   // ---- session control ----
   const stop = useCallback(() => {
+    retryToken.current++;
     flush(true);
     engine.stop();
     setSession(null);
@@ -302,7 +310,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const gated = useMemo(() => ({
     ...engine,
     play: async () => { if (await ensureAd()) return startAfterAd(); },
-    toggle: () => (engine.playing || engine.loading || !needsAd() ? engine.toggle() : void ensureAd().then((ok) => { if (ok) void startAfterAd(); })),
+    pause: () => { retryToken.current++; engine.pause(); },
+    toggle: () => { retryToken.current++; if (engine.playing || engine.loading || !needsAd()) engine.toggle(); else void ensureAd().then((ok) => { if (ok) void startAfterAd(); }); },
     goTo: (i: number, autoplay = true, t = 0) => { if (autoplay && !engine.playing && needsAd()) { engine.goTo(i, false, t); void ensureAd().then((ok) => { if (ok) void startAfterAd(); }); } else engine.goTo(i, autoplay, t); },
   }) as Engine, [engine, ensureAd]); // eslint-disable-line react-hooks/exhaustive-deps
 

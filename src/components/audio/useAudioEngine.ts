@@ -32,6 +32,8 @@ export function useAudioEngine(opts: Opts) {
   const repeatRef = useRef<Repeat>("off");
   const volumeRef = useRef(1);
   const wantPlay = useRef(false);
+  // "is the listener playing?": the silent clip played inside a tap to unlock audio on phones does not count, or a voice change at that moment would start the narration by itself
+  const intendsToPlay = () => (!el().paused && !el().src.startsWith("data:")) || wantPlay.current;
   const busy = useRef(false); // a passage is being fetched/started
   const indexRef = useRef(0);
 
@@ -249,7 +251,7 @@ export function useAudioEngine(opts: Opts) {
   const prev = useCallback(() => {
     const a = el();
     // like most players: first press restarts the passage, a press near the start goes back
-    const wasPlaying = !a.paused || wantPlay.current;
+    const wasPlaying = (!a.paused && !a.src.startsWith("data:")) || wantPlay.current;
     if (a.currentTime > 3) void startChunk(indexRef.current, wasPlaying);
     else void startChunk(Math.max(indexRef.current - 1, 0), wasPlaying);
   }, [startChunk]);
@@ -269,7 +271,7 @@ export function useAudioEngine(opts: Opts) {
         if (t < acc + len || i === n - 1) {
           const off = Math.max(0, Math.min(t - acc, len - 0.05));
           if (i === indexRef.current && hasSrc()) el().currentTime = off;
-          else void startChunk(i, !el().paused || wantPlay.current, off);
+          else void startChunk(i, intendsToPlay(), off);
           return;
         }
         acc += len;
@@ -297,7 +299,7 @@ export function useAudioEngine(opts: Opts) {
     (id: string) => {
       if (id === voiceRef.current) return;
       voiceRef.current = id;
-      if (chunks.current.length) void startChunk(indexRef.current, !el().paused || wantPlay.current, 0);
+      if (chunks.current.length) void startChunk(indexRef.current, intendsToPlay(), 0);
     },
     [startChunk],
   );
