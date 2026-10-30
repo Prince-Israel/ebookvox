@@ -15,5 +15,8 @@ Fetched live from API.Bible by `GET /api/bible/chapter?version=NIV&book=43&chapt
 - The free Starter plan covers up to 3 licensed Bibles for **non-commercial** use and 5,000 requests a month. Ebookvox has ads and subscriptions, so move to a paid plan and check each publisher's terms before relying on this commercially.
 - Which versions the key can read: `curl -H "api-key: $BIBLE_API_KEY" https://rest.api.bible/v1/bibles`. To switch another on, add its `apiId` in `src/lib/bible.ts`.
 
+## YouVersion Platform (BSB, WEB, TPT)
+Same route, `YOUVERSION_APP_KEY` in the server `.env` (sent as `X-YVP-App-Key` to `api.youversion.com`). BSB and WEB (public domain, red letters) work now. The key's licensed list is only open-licence Bibles; NIV, AMP, NASB and TPT show as "unlockable" until their publisher licence is accepted in the platform portal (https://platform.youversion.com). Once TPT is accepted, set `available: true` for it in `src/lib/bible.ts`. Check what a key can read: `curl -H "X-YVP-App-Key: $KEY" "https://api.youversion.com/v1/bibles?language_ranges[]=en&all_available=true"`. Copyright lines come from each Bible's metadata and must stay visible. Terms for commercial use are not public: read each Bible's licence in the portal.
+
 ## Still locked
-NKJV, NLT, AMPC, TPT and Mirror are not on the key's plan (NKJV and NLT exist in API.Bible's catalogue but need their publishers' approval; TPT and Mirror are not offered). They show as "licence needed".
+NKJV, NLT, AMPC and Mirror are on neither service's plan for these keys (NKJV and NLT need their publishers' approval); TPT waits for the YouVersion licence. They show as "licence needed".

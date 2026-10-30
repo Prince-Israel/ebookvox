@@ -1,6 +1,6 @@
 // Bible versions. Only public-domain texts can ship with the app; the others need a publisher licence
 // (see docs/BIBLE.md) and stay locked until their text is connected.
-export type BibleVersion = { id: string; name: string; full: string; available: boolean; apiId?: string; red?: boolean };
+export type BibleVersion = { id: string; name: string; full: string; available: boolean; apiId?: string; yvId?: number; red?: boolean };
 export const BIBLE_VERSIONS: BibleVersion[] = [
   { id: "KJV", name: "KJV", full: "King James Version", available: true, red: true },
   { id: "NKJV", name: "NKJV", full: "New King James Version", available: false },
@@ -9,7 +9,9 @@ export const BIBLE_VERSIONS: BibleVersion[] = [
   { id: "AMP", name: "AMP", full: "Amplified Bible", available: true, apiId: "a81b73293d3080c9-01", red: true },
   { id: "AMPC", name: "AMPC", full: "Amplified Bible, Classic Edition", available: false },
   { id: "MSG", name: "MSG", full: "The Message", available: true, apiId: "6f11a7de016f942e-01", red: false },
-  { id: "TPT", name: "TPT", full: "The Passion Translation", available: false },
+  { id: "TPT", name: "TPT", full: "The Passion Translation", available: false, yvId: 1849, red: true },
+  { id: "BSB", name: "BSB", full: "Berean Standard Bible", available: true, yvId: 3034, red: true },
+  { id: "WEB", name: "WEB", full: "World English Bible", available: true, yvId: 206, red: true },
   { id: "MIRROR", name: "Mirror", full: "The Mirror Bible", available: false },
 ];
 
@@ -26,6 +28,7 @@ export const USFM = "GEN EXO LEV NUM DEU JOS JDG RUT 1SA 2SA 1KI 2KI 1CH 2CH EZR
 export function parseChapterHtml(html: string): Verse[] {
   const decode = (t: string) => t.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&nbsp;/g, " ").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
   const SKIP = /^(s\d?|r|d|cl|ms\d?|mr|sp|qa|h|sr|rq|mt\d?|cp|cd)$/;
+  const skipClass = (c: string) => c.split(" ").some((x) => SKIP.test(x) || x === "yv-h");
   const verses: Verse[] = [];
   const stack: string[] = [];
   let skipP = false;
@@ -42,15 +45,17 @@ export function parseChapterHtml(html: string): Verse[] {
     const [, close, tag, attrs, text] = m;
     if (text !== undefined) { add(decode(text)); continue; }
     const cls = /class="([^"]*)"/.exec(attrs)?.[1] ?? "";
-    if (tag === "p") {
+    if (tag === "p" || tag === "div") {
       if (close) { skipP = false; if (cur() && !skipP) add(" "); }
-      else skipP = SKIP.test(cls);
+      else if (tag === "p" || /(^| )(p|m|q\d?|pi\d?|mi|li\d?|b|d|s\d?|r|cl|ms\d?|mr|sp|qa|h|sr|rq|mt\d?|cp|cd|pmo|pm|pc|pr)( |$)/.test(cls)) skipP = skipClass(cls);
     } else if (tag === "span") {
       if (close) { if (stack.pop() === "v") inNum = false; }
+      else if (cls.split(" ").includes("yv-v")) { const n = Number(/ v="(\d+)/.exec(attrs)?.[1]); verses.push({ v: n || verses.length + 1, label: String(n || verses.length + 1), segs: [] }); stack.push(""); }
+      else if (cls.split(" ").includes("yv-vlbl")) { stack.push("v"); inNum = true; }
       else if (cls.split(" ").includes("v")) {
         const sid = /data-sid="[^"]*?(\d+)(?:-\d+)?"/.exec(attrs);
         const label = /data-number="([^"]*)"/.exec(attrs)?.[1] ?? "";
-        if (!skipP) verses.push({ v: Number(sid?.[1] ?? label.split("-")[0]) || verses.length + 1, label, segs: [] });
+        verses.push({ v: Number(sid?.[1] ?? label.split("-")[0]) || verses.length + 1, label, segs: [] });
         stack.push("v"); inNum = true;
       } else stack.push(cls.split(" ").find((c) => c === "wj" || c === "nd" || c === "it" || c === "add") === "add" ? "it" : cls.split(" ").find((c) => c === "wj" || c === "nd" || c === "it") ?? "");
     }

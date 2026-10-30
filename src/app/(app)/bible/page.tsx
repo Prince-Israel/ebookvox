@@ -50,11 +50,11 @@ export default function BiblePage() {
     setText(null); setError(false); setCopyright("");
     const v = BIBLE_VERSIONS.find((x) => x.id === version);
     const xr = getJson<Record<string, XRef[]>>(`/bible/xref/${book}.json`).catch(() => ({}));
-    const body = v?.apiId
+    const body = v?.apiId || v?.yvId
       ? fetch(`/api/bible/chapter?${new URLSearchParams({ version, book: String(book), chapter: String(chapter) })}`).then(async (r) => {
           const d = await r.json();
           if (!r.ok) throw new Error(d.error);
-          (window as any)._BAPI?.t?.(d.fumsToken); // usage report required by API.Bible
+          if (d.fumsToken) (window as any)._BAPI?.t?.(d.fumsToken); // usage report required by API.Bible
           setCopyright(d.copyright);
           return d.verses as Verse[];
         })
