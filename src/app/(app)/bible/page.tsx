@@ -98,7 +98,7 @@ export default function BiblePage() {
                     <button onClick={() => setVerse(i + 1)} aria-label={`Verse ${i + 1}: cross-references`} className="mr-1.5 align-super text-xs font-bold text-accent">{i + 1}</button>
                     {segs.map(([t, s, f], j) => {
                       const cls = cx(red && f & 1 && "text-[#c62828]", f & 2 && "italic", f & 4 && "uppercase tracking-wide text-[0.9em]");
-                      return s && strongs ? <button key={j} onClick={() => setWord({ num: s, label: t.trim() })} className={cx(cls, "cursor-pointer rounded-sm text-left decoration-dotted underline-offset-4 hover:underline")}>{t}</button> : <span key={j} className={cls}>{t}</span>;
+                      return s && strongs ? <button key={j} onClick={() => setWord({ num: s, label: t.trim() })} className={cx(cls, "inline cursor-pointer rounded-sm p-0 text-left decoration-dotted underline-offset-4 hover:underline")}>{t}</button> : <span key={j} className={cls}>{t}</span>;
                     })}
                   </p>
                 ))}
