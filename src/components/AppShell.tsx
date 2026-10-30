@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, BookOpen, Crown, Home, Library, LifeBuoy, Receipt, Settings, ShieldCheck, UserRound, Wallet } from "lucide-react";
+import { Bell, BookMarked, BookOpen, Crown, Home, Library, LifeBuoy, Receipt, Settings, ShieldCheck, UserRound, Wallet } from "lucide-react";
 import { Logo } from "./Logo";
 import { LegalFooter } from "./LegalFooter";
 import { Avatar } from "./Avatar";
@@ -15,6 +15,7 @@ import { api, ApiFailure } from "@/lib/client";
 const MAIN = [
   { href: "/home", label: "Home", Icon: Home },
   { href: "/books", label: "Books", Icon: BookOpen },
+  { href: "/bible", label: "Bible", Icon: BookMarked },
   { href: "/library", label: "Library", Icon: Library },
   { href: "/profile", label: "Profile", Icon: UserRound },
 ] as const;
@@ -33,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const toast = useToast();
   const [sending, setSending] = useState(false);
   const guest = !user;
-  const isPublic = path === "/home" || path === "/books" || path === "/subscribe" || /^\/books\/[^/]+$/.test(path);
+  const isPublic = path === "/home" || path === "/books" || path === "/bible" || path === "/subscribe" || /^\/books\/[^/]+$/.test(path);
   const active = (h: string) => path === h || path.startsWith(h + "/");
   const reading = path.startsWith("/read/");
   const native = useIsNative();
