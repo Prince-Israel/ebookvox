@@ -53,7 +53,7 @@ export default function Terms() {
         <Ul>
           <li><strong>Your content.</strong> You confirm you own, or are licensed to sell, everything you upload, including text and covers, and that it does not infringe anyone’s rights, is not unlawful and does not mislead readers. You give us a licence to host, display, convert to speech and sell your books through Ebookvox.</li>
           <li><strong>Review.</strong> We may review, reject, suspend or remove any book, for example for rights complaints, quality or safety, or a breach of these terms.</li>
-          <li><strong>Revenue share.</strong> You receive the share of the sale price of each book sold that is shown in your Publisher dashboard, after any payment processing costs or taxes we are required to deduct.</li>
+          <li><strong>Revenue share.</strong> You receive 85% of the sale price of each book sold, after any payment processing costs or taxes we are required to deduct. Ebookvox keeps 15%.</li>
           <li><strong>Payouts.</strong> We pay out available earnings to the payout details you give us, subject to any minimum amounts, verification and checks we apply. You are responsible for your own taxes and for keeping your payout details correct.</li>
           <li><strong>Refunds and reversals.</strong> If a sale is refunded, reversed or found to be fraudulent, we may deduct the related amount from your balance or future payouts.</li>
         </Ul>
