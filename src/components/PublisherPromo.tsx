@@ -14,7 +14,7 @@ export function PublisherPromo({ compact = false, className }: { compact?: boole
           <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/15"><PenLine className="size-6" /></div>
           <div className="min-w-0">
             <h2 id="pubpromo" className="text-xl font-semibold sm:text-2xl">Are you an author or publisher?</h2>
-            <p className="mt-1 text-sm opacity-90 sm:text-base">Upload your books on Ebookvox — sell them and keep 85% of every sale, or share them free. Readers can read and listen in their own currency, worldwide.</p>
+            <p className="mt-1 text-sm opacity-90 sm:text-base">Upload your books on Ebookvox — sell them or share them free. Readers can read and listen in their own currency, worldwide.</p>
           </div>
         </div>
         <a href={href} target="_blank" rel="noopener noreferrer" aria-disabled={!c} className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-[#fbf1e4] px-6 font-semibold text-[#3a261c] transition hover:bg-white active:scale-[0.98]">

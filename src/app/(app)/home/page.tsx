@@ -38,7 +38,7 @@ export default function HomePage() {
   // The player is shared by the whole app, so audio keeps playing when you leave this page.
   const pb = usePlayback();
   const { engine, blocks, chunks, voice, setVoice, speed, setSpeed } = pb;
-  const doc: Doc | null = pb.session?.kind === "doc" ? pb.session.doc : null;
+  const doc: Doc | null = pb.session?.kind === "doc" && pb.session.doc.kind !== "bible" ? pb.session.doc : null; // (a Bible chapter being read lives on the Bible page)
 
   const recent = useApi<{ documents: Array<{ id: string; title: string; kind: string; createdAt: string }> }>(user ? "/api/documents" : null, "We couldn't load your recent documents.");
   const library = useApi<{ reading: Array<{ id: string; title: string; author: string; coverHue: number; coverUrl: string | null; percent: number }> }>(user ? "/api/library" : null, "We couldn't load your books.");
