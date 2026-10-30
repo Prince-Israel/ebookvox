@@ -35,7 +35,7 @@ export function InstallSheet({ open, onClose }: { open: boolean; onClose: () => 
 
   return (
     <Sheet open={open} onClose={onClose} title="Add Ebookvox to your Home Screen">
-      <div className="space-y-5">
+      <div className="space-y-5 text-left">
         <div className="flex items-center gap-4 rounded-2xl bg-surface2 p-4">
           <LogoMark size={56} />
           <div className="min-w-0">
