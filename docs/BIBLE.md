@@ -10,9 +10,10 @@
 ## Credits (shown on the page)
 KJV + Strong's tagging: CrossWire/OpenScriptures. Strong's dictionary: OpenScriptures, CC-BY-SA. Cross-references: openbible.info, CC-BY.
 
-## The other versions need a licence
-NKJV, NIV, NLT, AMP, AMPC, MSG, TPT and Mirror are copyrighted. They appear in the version picker as "licence needed" and cannot be bundled or scraped. To turn one on:
-1. Get permission from its publisher (Biblica for NIV, Tyndale for NLT, Lockman for AMP/AMPC, Thomas Nelson for NKJV, NavPress for MSG, BroadStreet for TPT, Mirror Word for Mirror), or use a licensed API such as API.Bible (api.bible), which offers some of these to approved apps.
-2. Add the text in the same format as `public/bible/kjv/<n>.json` (segments `[text, strongs|0, flags]`, flags bit 1 = words of Jesus), or fetch it from the licensed API.
-3. Set `available: true` for it in `src/lib/bible.ts` and load its files by version id in `bible/page.tsx` (currently hard-wired to KJV paths).
-Red letters, cross-references and the concordance then work the same, because cross-references are by verse number.
+## NIV, AMP and MSG (API.Bible)
+Fetched live from API.Bible by `GET /api/bible/chapter?version=NIV&book=43&chapter=3` using `BIBLE_API_KEY` (server `.env`, never committed). Words of Jesus are red for NIV and AMP; the publisher of MSG does not mark them. Cross-references work for every version (by verse number); Strong's and the concordance are KJV-only. The page loads API.Bible's usage-report script (`pkg.api.bible/fumsV3.min.js`, "FUMS") and shows each version's copyright line, as their terms require.
+- The free Starter plan covers up to 3 licensed Bibles for **non-commercial** use and 5,000 requests a month. Ebookvox has ads and subscriptions, so move to a paid plan and check each publisher's terms before relying on this commercially.
+- Which versions the key can read: `curl -H "api-key: $BIBLE_API_KEY" https://rest.api.bible/v1/bibles`. To switch another on, add its `apiId` in `src/lib/bible.ts`.
+
+## Still locked
+NKJV, NLT, AMPC, TPT and Mirror are not on the key's plan (NKJV and NLT exist in API.Bible's catalogue but need their publishers' approval; TPT and Mirror are not offered). They show as "licence needed".

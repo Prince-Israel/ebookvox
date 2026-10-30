@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Link2, Lock, Search } from "lucide-react";
 import { Banner, Button, PageTitle, Sheet, Skeleton, cx } from "@/components/ui";
 import { api } from "@/lib/client";
-import { BIBLE_VERSIONS, type BibleBook, type Seg, type StrongsEntry, type XRef } from "@/lib/bible";
+import { BIBLE_VERSIONS, type BibleBook, type Seg, type StrongsEntry, type Verse, type XRef } from "@/lib/bible";
 
 type Hit = { b: number; c: number; v: number; text: string };
 const store = { get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } } };
@@ -17,9 +17,11 @@ export default function BiblePage() {
   const [version, setVersion] = useState("KJV");
   const [red, setRed] = useState(true);
   const [strongs, setStrongs] = useState(true);
-  const [text, setText] = useState<Seg[][] | null>(null);
+  const [text, setText] = useState<Verse[] | null>(null);
+  const [copyright, setCopyright] = useState("");
   const [xrefs, setXrefs] = useState<Record<string, XRef[]>>({});
   const [error, setError] = useState(false);
+  const [errMsg, setErrMsg] = useState("");
   const [verse, setVerse] = useState<number | null>(null);
   const [word, setWord] = useState<{ num: string; label: string } | null>(null);
   const [mode, setMode] = useState<"read" | "search">("read");
@@ -35,14 +37,32 @@ export default function BiblePage() {
     } catch { /* default position */ }
   }, []);
 
+  useEffect(() => {
+    if (document.getElementById("fums")) return;
+    const el = document.createElement("script"); // API.Bible usage report (fair-use tracking), required for licensed versions
+    el.id = "fums"; el.src = "https://pkg.api.bible/fumsV3.min.js"; el.async = true;
+    document.head.appendChild(el);
+  }, []);
+
   const meta = books[book - 1];
   useEffect(() => {
-    setText(null); setError(false);
-    Promise.all([getJson<Seg[][][]>(`/bible/kjv/${book}.json`), getJson<Record<string, XRef[]>>(`/bible/xref/${book}.json`).catch(() => ({}))])
-      .then(([t, x]) => { setText(t[chapter - 1] ?? t[0]); setXrefs(x); })
-      .catch(() => setError(true));
+    let live = true;
+    setText(null); setError(false); setCopyright("");
+    const v = BIBLE_VERSIONS.find((x) => x.id === version);
+    const xr = getJson<Record<string, XRef[]>>(`/bible/xref/${book}.json`).catch(() => ({}));
+    const body = v?.apiId
+      ? fetch(`/api/bible/chapter?${new URLSearchParams({ version, book: String(book), chapter: String(chapter) })}`).then(async (r) => {
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.error);
+          (window as any)._BAPI?.t?.(d.fumsToken); // usage report required by API.Bible
+          setCopyright(d.copyright);
+          return d.verses as Verse[];
+        })
+      : getJson<Seg[][][]>(`/bible/kjv/${book}.json`).then((t) => (t[chapter - 1] ?? t[0]).map((segs, i): Verse => ({ v: i + 1, label: String(i + 1), segs })));
+    Promise.all([body, xr]).then(([t, x]) => { if (live) { setText(t); setXrefs(x); } }).catch((e) => { if (live) { setError(true); setErrMsg(e?.message || ""); } });
     store.set("bible-pos", JSON.stringify({ b: book, c: chapter }));
-  }, [book, chapter]);
+    return () => { live = false; };
+  }, [book, chapter, version]);
 
   const go = useCallback((b: number, c: number, v?: number) => {
     setBook(b); setChapter(c); setVerse(null); setMode("read"); setHl(v ?? null);
@@ -58,7 +78,7 @@ export default function BiblePage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <PageTitle title="Bible" sub={`${selected.full}${red ? " · words of Jesus in red" : ""}`} />
+      <PageTitle title="Bible" sub={`${selected.full}${red && selected.red !== false ? " · words of Jesus in red" : ""}`} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <select aria-label="Bible version" value={version} onChange={(e) => setVersion(e.target.value)} className="h-11 rounded-xl border border-line bg-surface px-3 font-medium">
           {BIBLE_VERSIONS.map((v) => <option key={v.id} value={v.id}>{v.name}{v.available ? "" : " — licence needed"}</option>)}
@@ -71,7 +91,7 @@ export default function BiblePage() {
       {!selected.available ? (
         <Banner tone="warn"><Lock className="mr-1 inline size-4" /> The {selected.full} is copyrighted, so it can only be added with the publisher's licence. Until it is connected, please read the KJV. <button className="font-semibold underline" onClick={() => setVersion("KJV")}>Switch to KJV</button></Banner>
       ) : mode === "search" ? (
-        <Concordance books={books} onOpen={go} onWord={(num) => setWord({ num, label: num })} />
+        <Concordance books={books} onOpen={(b, c, v) => { setVersion("KJV"); go(b, c, v); }} onWord={(num) => setWord({ num, label: num })} />
       ) : (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -84,21 +104,21 @@ export default function BiblePage() {
             </select>
           </div>
           <div className="mb-5 flex flex-wrap gap-4 text-sm">
-            <label className="flex items-center gap-2"><input type="checkbox" checked={red} onChange={(e) => { setRed(e.target.checked); store.set("bible-red", e.target.checked ? "1" : "0"); }} /> <span className="font-semibold text-[#c62828]">Words of Jesus in red</span></label>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={strongs} onChange={(e) => { setStrongs(e.target.checked); store.set("bible-strongs", e.target.checked ? "1" : "0"); }} /> Tap words for Strong's concordance</label>
+            {selected.red !== false ? <label className="flex items-center gap-2"><input type="checkbox" checked={red} onChange={(e) => { setRed(e.target.checked); store.set("bible-red", e.target.checked ? "1" : "0"); }} /> <span className="font-semibold text-[#c62828]">Words of Jesus in red</span></label> : <span className="text-muted">The publisher of {selected.name} doesn't mark Jesus' words in red.</span>}
+            <label className="flex items-center gap-2"><input type="checkbox" checked={strongs} onChange={(e) => { setStrongs(e.target.checked); store.set("bible-strongs", e.target.checked ? "1" : "0"); }} /> Tap words for Strong's concordance{selected.id !== "KJV" && <span className="text-muted"> (KJV only)</span>}</label>
           </div>
 
           <h2 className="mb-3 text-2xl font-bold">{meta?.name} {chapter}</h2>
-          {error ? <Banner tone="danger" action={<Button size="sm" onClick={() => go(book, chapter)}>Try again</Button>}>We couldn't load this chapter.</Banner>
+          {error ? <Banner tone="danger" action={<Button size="sm" onClick={() => go(book, chapter)}>Try again</Button>}>{errMsg || "We couldn't load this chapter."}</Banner>
             : !text ? <div className="space-y-2">{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-6" />)}</div>
             : (
               <article className="font-serif text-lg leading-8">
-                {text.map((segs, i) => (
-                  <p key={i} className={cx("mb-2", hl === i + 1 && "rounded-lg bg-accent-soft px-2")}>
-                    <button onClick={() => setVerse(i + 1)} aria-label={`Verse ${i + 1}: cross-references`} className="mr-1.5 align-super text-xs font-bold text-accent">{i + 1}</button>
+                {text.map(({ v, label, segs }) => (
+                  <p key={v} className={cx("mb-2", hl === v && "rounded-lg bg-accent-soft px-2")}>
+                    <button onClick={() => setVerse(v)} aria-label={`Verse ${label}: cross-references`} className="mr-1.5 align-super text-xs font-bold text-accent">{label}</button>
                     {segs.map(([t, s, f], j) => {
-                      const cls = cx(red && f & 1 && "text-[#c62828]", f & 2 && "italic", f & 4 && "uppercase tracking-wide text-[0.9em]");
-                      return s && strongs ? <button key={j} onClick={() => setWord({ num: s, label: t.trim() })} className={cx(cls, "inline cursor-pointer rounded-sm p-0 text-left decoration-dotted underline-offset-4 hover:underline")}>{t}</button> : <span key={j} className={cls}>{t}</span>;
+                      const cls = cx(red && selected.red !== false && f & 1 && "text-[#c62828]", f & 2 && "italic", f & 4 && "uppercase tracking-wide text-[0.9em]");
+                      return s && strongs && selected.id === "KJV" ? <button key={j} onClick={() => setWord({ num: s, label: t.trim() })} className={cx(cls, "inline cursor-pointer rounded-sm p-0 text-left decoration-dotted underline-offset-4 hover:underline")}>{t}</button> : <span key={j} className={cls}>{t}</span>;
                     })}
                   </p>
                 ))}
@@ -111,6 +131,7 @@ export default function BiblePage() {
         </>
       )}
 
+      <p className="mb-3 text-xs text-muted">{copyright}</p>
       <p className="mb-10 text-xs text-muted">King James Version (public domain) with Strong's numbers from the CrossWire/OpenScriptures project. Strong's dictionary: OpenScriptures, CC-BY-SA. Cross-references: openbible.info, CC-BY.</p>
 
       <Sheet open={verse !== null} onClose={() => setVerse(null)} title={verse ? `${meta?.name} ${chapter}:${verse}` : ""}>
