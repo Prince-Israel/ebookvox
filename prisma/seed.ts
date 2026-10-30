@@ -77,7 +77,7 @@ async function main() {
     await upsertBook(
       {
         externalId, publisherId: "ebookvox-classics", publisherName: "Ebookvox Classics", title: b.title, author: b.author, category: b.category,
-        description: b.description, language: "en", coverUrl: null, isFree: b.free,
+        description: b.description, language: "en", coverUrl: `https://www.gutenberg.org/cache/epub/${b.gid}/pg${b.gid}.cover.medium.jpg`, isFree: b.free,
         prices: b.free ? undefined : { NGN: ngn, GBP: gbp, EUR: eur, USD: usd }, chapters,
       },
       { autoApprove: true },

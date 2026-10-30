@@ -89,7 +89,7 @@ async function main() {
   section("Sign up form");
   await p.goto(BASE + "/sign-up");
   await shot("04-signup");
-  ok((await p.getByRole("link", { name: /Download the Ebookvox Android app/ }).count()) === 0 && (await p.getByText("Get the app", { exact: false }).count()) === 0, "inside the mobile app the sign-up screen has no “Get the app” section at all (you already have the app)");
+  ok((await p.getByRole("link", { name: /Get Ebookvox on Google Play/ }).count()) === 0 && (await p.getByText("Get the app", { exact: false }).count()) === 0, "inside the mobile app the sign-up screen has no “Get the app” section at all (you already have the app)");
   const google = p.getByRole("link", { name: /with Google/ }), apple = p.getByRole("link", { name: /with Apple/ });
   const gb = await google.boundingBox(), ab = await apple.boundingBox();
   ok(gb && ab && gb.height >= 52 && ab.height >= 52 && gb.width > 250, `Google/Apple buttons large (${gb?.height}px high)`);
@@ -164,6 +164,14 @@ async function main() {
   await p.waitForFunction(() => { const a = (window as any).__cur; return a && !a.paused && a.currentTime > 0.3 && !a.src.startsWith("data:"); }, null, { timeout: 40000 });
   ok(true, "text is spoken (audio playing, currentTime advancing)");
   ok(await p.getByText("Paragraph number 1 is here").first().isVisible(), "text displayed with paragraphs preserved");
+  // the spoken text can be saved as an audio file
+  {
+    const dlWait = p.waitForEvent("download", { timeout: 120000 });
+    await p.getByRole("button", { name: /Download audio of/ }).first().evaluate((b: HTMLElement) => b.click());
+    const dlf = await dlWait;
+    const dlPath = await dlf.path();
+    ok(/\.(mp3|m4a)$/.test(dlf.suggestedFilename()) && !!dlPath && (await import("node:fs")).statSync(dlPath).size > 5000, "Download audio saves the generated speech as an audio file", dlf.suggestedFilename());
+  }
   await shot("06-player");
   await overflow(p, "home + player");
   // speed
@@ -464,17 +472,33 @@ async function main() {
   section("Website only: store badges, publisher invitation, Google/Apple buttons");
   {
     const wc = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    // never load Google's real ad script: it would add its own ad slots and make the test depend on the network
+    await wc.route(/googlesyndication\.com|doubleclick\.net/, (r) => r.fulfill({ status: 200, contentType: "application/javascript", body: "" }));
     const w = await wc.newPage();
     await w.goto(BASE + "/home");
     const heading = w.getByRole("heading", { name: "Take Ebookvox with you" });
     await heading.scrollIntoViewIfNeeded();
-    const apk = w.getByRole("link", { name: /Download the Ebookvox Android app/ }).first();
-    ok(await heading.isVisible() && await apk.isVisible() && /Ebookvox-Reader-android\.apk$/.test((await apk.getAttribute("href")) ?? ""), "the website offers the Android app (APK until the Play Store listing is set)");
-    ok(await w.getByRole("img", { name: /App Store — coming soon/ }).first().isVisible(), "the App Store badge says “coming soon” until a listing exists");
+    const play = w.getByRole("link", { name: /Get Ebookvox on Google Play/ }).first();
+    ok(await heading.isVisible() && await play.isVisible() && (await play.getAttribute("href")) === "https://play.google.com/store/apps/details?id=app.ebookvox.reader", "the Google Play badge opens the Ebookvox listing on Google Play");
+    // the App Store badge installs the site to the Home Screen (there is no App Store listing yet)
+    await w.getByRole("button", { name: /Add Ebookvox to your iPhone Home Screen/ }).first().click();
+    await w.getByRole("heading", { name: "Add Ebookvox to your Home Screen" }).waitFor({ timeout: 5000 });
+    ok(await w.getByText("Add to Home Screen").first().isVisible(), "clicking the App Store badge opens the Add to Home Screen instructions");
+    await w.keyboard.press("Escape");
+    {
+      const iph = await browser.newContext({ ...devices["iPhone 14"], extraHTTPHeaders: { "cf-ipcountry": "NG" } });
+      const ip = await iph.newPage();
+      await ip.goto(BASE + "/sign-in");
+      await ip.getByRole("button", { name: /Add Ebookvox to your iPhone Home Screen/ }).first().click();
+      await ip.getByRole("heading", { name: "Add Ebookvox to your Home Screen" }).waitFor({ timeout: 5000 });
+      const txt = await ip.locator("[role=dialog], dialog").first().innerText().catch(async () => await ip.locator("body").innerText());
+      ok(/Share/.test(txt) && /Add to Home Screen/.test(txt) && /Tap Add/.test(txt), "on an iPhone the App Store badge shows the Share → Add to Home Screen → Add steps");
+      await iph.close();
+    }
     ok((await w.getByRole("link", { name: /Publish your books/ }).first().getAttribute("href"))?.endsWith("/sign-up") === true, "guests also see the author/publisher invitation");
     await w.goto(BASE + "/sign-in");
-    await w.getByRole("link", { name: /Download the Ebookvox Android app/ }).first().waitFor({ timeout: 15000 }).catch(() => {});
-    ok(await w.getByRole("link", { name: /Download the Ebookvox Android app/ }).first().isVisible(), "the sign-in page shows the app badges");
+    await w.getByRole("link", { name: /Get Ebookvox on Google Play/ }).first().waitFor({ timeout: 15000 }).catch(() => {});
+    ok(await w.getByRole("link", { name: /Get Ebookvox on Google Play/ }).first().isVisible(), "the sign-in page shows the app badges");
     ok(((await w.getByRole("link", { name: /with Google/ }).getAttribute("href")) ?? "").startsWith("/api/auth/oauth/google/start"), "Continue with Google is a plain link on the website");
     await w.goto(BASE + "/sign-in?next=%2Flibrary");
     ok((await w.getByRole("link", { name: /with Apple/ }).getAttribute("href")) === "/api/auth/oauth/apple/start?next=%2Flibrary", "the destination survives the Apple sign-in round trip");

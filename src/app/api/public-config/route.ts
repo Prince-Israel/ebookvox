@@ -18,7 +18,7 @@ export const GET = route(async () => {
     build: BUILT,
     publisherUrl,
     publisherSignUpUrl: `${publisherUrl}/sign-up`,
-    playStoreUrl: e.PLAY_STORE_URL || null,
+    playStoreUrl: e.PLAY_STORE_URL || "https://play.google.com/store/apps/details?id=app.ebookvox.reader",
     appStoreUrl: e.APP_STORE_URL || null,
     apkUrl: e.APK_DOWNLOAD_URL || "https://github.com/Prince-Israel/ebookvox/raw/main/downloads/Ebookvox-Reader-android.apk",
     ads: {

@@ -12,6 +12,7 @@ import { AuthPrompt } from "@/components/AuthPrompt";
 import { BookCarousel } from "@/components/BookCarousel";
 import { PublisherPromo } from "@/components/PublisherPromo";
 import { GetTheApp } from "@/components/GetTheApp";
+import { DownloadAudio } from "@/components/DownloadAudio";
 import { AdSlot } from "@/components/AdSlot";
 import { AdBand, NativeBanners } from "@/components/NativeBanners";
 import { api, ApiFailure, useApi } from "@/lib/client";
@@ -184,7 +185,10 @@ export default function HomePage() {
         <section id="reader" aria-label="Reading view" className="anim-up scroll-mt-20">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2"><FileText className="size-5 shrink-0 text-accent" /><h2 className="truncate text-2xl font-semibold">{doc.title}</h2><Badge tone="accent">{doc.kind}</Badge></div>
-            <Button size="sm" variant="ghost" onClick={pb.stop}><X className="size-4" /> Close</Button>
+            <div className="flex items-center gap-2">
+              <DownloadAudio docId={doc.id} title={doc.title} voice={voice} />
+              <Button size="sm" variant="ghost" onClick={pb.stop}><X className="size-4" /> Close</Button>
+            </div>
           </div>
           <div className="xl:grid xl:grid-cols-[1fr_24rem] xl:items-start xl:gap-6">
             <Card className="mb-4 max-h-[60dvh] overflow-y-auto xl:mb-0 xl:max-h-[70dvh]"><DocView blocks={blocks} chunks={chunks} activeChunk={engine.index} onPick={pickBlock} /></Card>
@@ -228,6 +232,7 @@ export default function HomePage() {
                     <p className="truncate font-semibold">{x.title}</p>
                     <p className="text-xs text-muted">{x.kind} · {when(x.createdAt)}</p>
                   </button>
+                  <DownloadAudio docId={x.id} title={x.title} voice={voice} variant="icon" />
                   <button onClick={() => removeRecent(x.id)} aria-label={`Delete ${x.title}`} className="grid size-10 place-items-center rounded-full text-muted hover:bg-danger-soft hover:text-danger"><Trash2 className="size-5" /></button>
                 </li>
               ))}

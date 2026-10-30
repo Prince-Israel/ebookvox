@@ -7,6 +7,7 @@ import { KeyboardAware } from "@/components/KeyboardAware";
 import { NativeBridge } from "@/components/NativeBridge";
 import { GeoHint } from "@/components/GeoHint";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { InstallBootstrap } from "@/components/InstallApp";
 
 export const metadata: Metadata = {
   title: { default: "Ebookvox — Your Words. Our Voice.", template: "%s · Ebookvox" },
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <NativeBridge />
         <GeoHint />
         <OfflineBanner />
+        <InstallBootstrap />
       </body>
     </html>
   );

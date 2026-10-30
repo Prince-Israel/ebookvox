@@ -137,3 +137,14 @@ export async function synthesize(text: string, voiceId: string): Promise<{ audio
   }
   throw new Error("no TTS provider available");
 }
+
+/** The whole text in one file, for the development-only system voice (its output can't be joined chunk by chunk like MP3). */
+export async function synthesizeWhole(text: string, voiceId: string): Promise<{ audio: Buffer; mime: string }> {
+  const v = resolveVoice(voiceId);
+  const file = path.join(CACHE_DIR, `whole-${key("say", text, v)}.bin`);
+  try { return { audio: await readFile(file), mime: "audio/mp4" }; } catch {}
+  const audio = await viaSay(text, v.id);
+  await mkdir(CACHE_DIR, { recursive: true });
+  await writeFile(file, audio);
+  return { audio, mime: "audio/mp4" };
+}

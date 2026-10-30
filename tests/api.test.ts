@@ -454,9 +454,39 @@ async function main() {
   ok((await gb.get("/api/notifications")).data.notifications.length === gbN, "clearing one user's notifications leaves other users' untouched");
 
   // ---------------------------------------------------------------- public links, store badges, mobile sign-in
+  section("Cover art, installable app, audio download");
+  {
+    const bk = await new Client().get("/api/books");
+    const free = bk.data.books.filter((b: any) => b.isFree);
+    ok(free.length > 0 && free.every((b: any) => !!b.coverUrl), "every free book has cover art", free.filter((b: any) => !b.coverUrl).map((b: any) => b.title));
+    const man = await (await fetch(BASE + "/manifest.webmanifest")).json();
+    const iconOk = await Promise.all(man.icons.map(async (i: any) => (await fetch(BASE + i.src)).status === 200));
+    ok(man.display === "standalone" && man.start_url === "/home" && iconOk.every(Boolean) && man.icons.some((i: any) => i.sizes === "512x512"), "the web app manifest is installable (every icon exists)", man.icons);
+    const swr = await fetch(BASE + "/sw.js");
+    ok(swr.status === 200 && /javascript/.test(swr.headers.get("content-type") ?? "") && (await fetch(BASE + "/offline.html")).status === 200, "the service worker and offline page are served");
+
+    const ac = new Client();
+    await ac.req("POST", "/api/auth/signup", { firstName: "Audio", lastName: "Tester", email: `audio.${stamp}@example.com`, password: pw, acceptTerms: true, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8012345678" }, { headers: { "x-forwarded-for": "203.0.113.90" } });
+    const ad = await ac.post("/api/documents", { text: "# A short story\n\nOnce upon a time there was a lighthouse keeper.\n\nEvery evening he climbed the stairs and lit the lamp for the ships at sea." });
+    const docId = ad.data.document.id;
+    ok((await new Client().post(`/api/documents/${docId}/audio`, { voice: "en-NG-EzinneNeural", from: 0 })).status === 401, "audio download needs a signed-in user");
+    const bad = await ac.post(`/api/documents/${docId}/audio`, { voice: "nope", from: 0 });
+    ok(bad.status === 400, "an unknown voice is refused");
+    let prep: any, guard = 0;
+    do { prep = await ac.post(`/api/documents/${docId}/audio`, { voice: "en-NG-EzinneNeural", from: prep?.data?.next ?? 0 }); } while (prep.status === 200 && !prep.data.done && ++guard < 50);
+    ok(prep.status === 200 && prep.data.done && prep.data.total >= 2 && /^\/api\/documents\/.+\/audio\/file\?token=/.test(prep.data.url), "the audio is prepared step by step and returns a download address", prep.data);
+    const fr = await fetch(BASE + prep.data.url);
+    const bytes = Buffer.from(await fr.arrayBuffer());
+    ok(fr.status === 200 && /^audio\/(mpeg|mp4)$/.test(fr.headers.get("content-type") ?? "") && /attachment; filename="A short story\.(mp3|m4a)"/.test(fr.headers.get("content-disposition") ?? "") && bytes.length > 2000, "the finished audio downloads as a file named after the document", { type: fr.headers.get("content-type"), cd: fr.headers.get("content-disposition"), size: bytes.length });
+    ok((await fetch(BASE + prep.data.url.replace(/token=.*/, "token=forged.token"))).status === 403, "a forged download address is refused");
+    const other = new Client();
+    await other.req("POST", "/api/auth/signup", { firstName: "Other", lastName: "Person", email: `other.${stamp}@example.com`, password: pw, acceptTerms: true, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8012345678" }, { headers: { "x-forwarded-for": "203.0.113.91" } });
+    ok((await other.post(`/api/documents/${docId}/audio`, { voice: "en-NG-EzinneNeural", from: 0 })).status === 404, "nobody else can download someone's document audio");
+  }
+
   section("Public config, ads.txt, mobile Google/Apple sign-in");
   const cfg = (await new Client().get("/api/public-config")).data;
-  ok(/\/sign-up$/.test(cfg.publisherSignUpUrl) && cfg.publisherSignUpUrl.startsWith(cfg.publisherUrl) && typeof cfg.apkUrl === "string" && cfg.playStoreUrl === null && cfg.appStoreUrl === null && cfg.ads.adsense?.client === "ca-pub-1234567890123456" && cfg.ads.adsense.slots.homeTop === "1111111111" && cfg.ads.adsense.slots.homeBottom === "2222222222" && cfg.ads.videoTagUrl === "https://ads.example.test/vast.xml" && cfg.ads.admob.testing === true && cfg.ads.admob.android.banner.startsWith("ca-app-pub-3940256099942544"), "public config gives the Publisher sign-up link, store links, the AdSense/video ad settings, and Google's TEST AdMob ids until real ones are set", cfg);
+  ok(/\/sign-up$/.test(cfg.publisherSignUpUrl) && cfg.publisherSignUpUrl.startsWith(cfg.publisherUrl) && typeof cfg.apkUrl === "string" && cfg.playStoreUrl === "https://play.google.com/store/apps/details?id=app.ebookvox.reader" && cfg.appStoreUrl === null && cfg.ads.adsense?.client === "ca-pub-1234567890123456" && cfg.ads.adsense.slots.homeTop === "1111111111" && cfg.ads.adsense.slots.homeBottom === "2222222222" && cfg.ads.videoTagUrl === "https://ads.example.test/vast.xml" && cfg.ads.admob.testing === true && cfg.ads.admob.android.banner.startsWith("ca-app-pub-3940256099942544"), "public config gives the Publisher sign-up link, store links, the AdSense/video ad settings, and Google's TEST AdMob ids until real ones are set", cfg);
   ok(!JSON.stringify(cfg).match(/secret|password|key/i), "public config contains no secrets");
   const adsTxt = await fetch(BASE + "/ads.txt");
   ok(adsTxt.status === 200 && (await adsTxt.text()).trim() === "google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0", "ads.txt is served for AdSense once ADSENSE_CLIENT is set");

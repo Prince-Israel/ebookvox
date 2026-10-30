@@ -1,5 +1,8 @@
 "use client";
+import { useState } from "react";
 import { Smartphone } from "lucide-react";
+import { InstallSheet } from "./InstallApp";
+import { promptInstall } from "@/lib/install";
 import { cx } from "./ui";
 import { useIsNative, usePublicConfig } from "@/lib/public-config";
 
@@ -17,17 +20,19 @@ const AppleLogo = () => (
   </svg>
 );
 
-function Badge({ href, logo, small, big, label }: { href: string | null; logo: React.ReactNode; small: string; big: string; label: string }) {
+function Badge({ href, onClick, logo, small, big, label }: { href: string | null; onClick?: () => void; logo: React.ReactNode; small: string; big: string; label: string }) {
   const body = (
     <>
       {logo}
       <span className="min-w-0 text-left leading-none">
-        <span className="block text-[10px] font-medium uppercase tracking-wide opacity-90">{href ? small : "Coming soon on"}</span>
+        <span className="block text-[10px] font-medium uppercase tracking-wide opacity-90">{href || onClick ? small : "Coming soon on"}</span>
         <span className="mt-1 block truncate text-lg font-semibold">{big}</span>
       </span>
     </>
   );
   const cls = "inline-flex h-14 min-w-[10.5rem] items-center gap-2.5 rounded-xl border border-white/25 bg-black px-4 text-white shadow-card transition";
+  if (!href && onClick)
+    return <button type="button" onClick={onClick} aria-label={label} className={cx(cls, "hover:bg-neutral-800 active:scale-[0.98]")}>{body}</button>;
   return href ? (
     <a href={href} target="_blank" rel="noopener noreferrer" aria-label={label} className={cx(cls, "hover:bg-neutral-800 active:scale-[0.98]")}>{body}</a>
   ) : (
@@ -39,14 +44,22 @@ function Badge({ href, logo, small, big, label }: { href: string | null; logo: R
 export function StoreBadges({ className, heading, headingClassName }: { className?: string; heading?: string; headingClassName?: string }) {
   const c = usePublicConfig();
   const native = useIsNative();
+  const [sheet, setSheet] = useState(false);
   if (native) return null;
+  // Until there is an App Store listing, the App Store badge installs the website as an app: Android/Chrome opens the install dialog
+  // straight away, and on iPhone it shows the Add to Home Screen steps.
+  async function addToHome() {
+    const r = await promptInstall();
+    if (r === "unavailable") setSheet(true);
+  }
   return (
     <div className={className}>
       {heading && <p className={cx("mb-2 text-xs uppercase tracking-widest", headingClassName)}>{heading}</p>}
       <div className="flex flex-wrap gap-3 [justify-content:inherit]">
       <Badge href={c?.playStoreUrl ?? c?.apkUrl ?? null} logo={<PlayLogo />} small={c?.playStoreUrl ? "Get it on" : "Download for"} big={c?.playStoreUrl ? "Google Play" : "Android (APK)"} label={c?.playStoreUrl ? "Get Ebookvox on Google Play" : "Download the Ebookvox Android app"} />
-      <Badge href={c?.appStoreUrl ?? null} logo={<AppleLogo />} small="Download on the" big="App Store" label="Download Ebookvox on the App Store" />
+      <Badge href={c?.appStoreUrl ?? null} onClick={addToHome} logo={<AppleLogo />} small="Download on the" big="App Store" label={c?.appStoreUrl ? "Download Ebookvox on the App Store" : "Add Ebookvox to your iPhone Home Screen"} />
       </div>
+      <InstallSheet open={sheet} onClose={() => setSheet(false)} />
     </div>
   );
 }
