@@ -12,7 +12,7 @@ export const POST = route(async (req) => {
   const user = await db.user.findUnique({ where: { email } });
   const ok = await verifyPassword(password, user?.passwordHash ?? DUMMY);
   if (!user || !user.passwordHash || !ok) {
-    if (user && !user.passwordHash) throw new ApiError(401, "This account uses Google or Apple sign-in. Use that button, or reset your password to add one.");
+    if (user && !user.passwordHash) throw new ApiError(401, "This account uses Google sign-in. Use that button, or reset your password to add one.");
     throw new ApiError(401, "Incorrect email or password.");
   }
   if (user.status === "SUSPENDED") throw new ApiError(403, "Your account has been suspended. Please contact Ebookvox support.");

@@ -12,9 +12,11 @@ import { DEFAULT_VOICE } from "@/lib/voices";
 import { backgroundAudio } from "@/lib/native-audio";
 import { getPublicConfig, isNativeApp, usePublicConfig } from "@/lib/public-config";
 import { showVideoAd } from "@/lib/video-ad";
+import { RewardGate } from "@/components/RewardGate";
+import { useToast } from "@/components/ui";
 
 export type BookMeta = {
-  book: { id: string; title: string; author: string; category: string; totalChars: number };
+  book: { id: string; title: string; author: string; category: string; totalChars: number; isFree?: boolean };
   chapters: Array<{ index: number; title: string; startChar: number; charCount: number }>;
   progress: { chapterIndex: number; paragraphIndex: number; audioTime: number; percent: number; completed: boolean; started: boolean };
 };
@@ -35,7 +37,7 @@ type Ctx = {
   speed: number;
   setSpeed: (s: number) => void;
   openBook: (id: string) => Promise<void>;
-  openDoc: (doc: Doc, autoplay: boolean) => void;
+  openDoc: (doc: Doc, autoplay: boolean, fresh?: boolean) => void;
   goChapter: (i: number, autoplay?: boolean) => void;
   retryChapter: () => void;
   pickBlock: (block: number) => void;
@@ -51,6 +53,7 @@ export const usePlayback = () => useContext(C)!;
  */
 export function PlaybackProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const toast = useToast();
   const pathname = usePathname();
   const router = useRouter();
   const [voice, setVoice] = useState(user?.defaultVoice ?? DEFAULT_VOICE);
@@ -93,22 +96,49 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const narrating = engine.playing && !engine.audioEl().src.startsWith("data:");
   adRef.current = { adFree, cfg, playing: narrating };
   const needsAd = () => !adRef.current.adFree && needAd.current && !adRef.current.playing; // (the ad settings may still be loading: ensureAd waits for them)
-  const ensureAd = useCallback(async () => {
-    if (!needsAd()) return;
-    needAd.current = false;
-    await showVideoAd(adRef.current.cfg ?? (await getPublicConfig()));
-    // The ad covered the app, which counts as "leaving" it. Wait until we're back on screen, and don't treat our own ad as the listener having left.
+  // The reward gate: free listeners watch one short video; the reward is access to listen. It opens straight away for a new text or file and
+  // for a free book, and again after the listener has left the app. A video that can't be shown (no ad, blocked) never blocks listening.
+  const [reward, setReward] = useState<{ open: boolean; watching: boolean; note: string | null }>({ open: false, watching: false, note: null });
+  const rewardWait = useRef<Promise<boolean> | null>(null);
+  const rewardDone = useRef<((ok: boolean) => void) | null>(null);
+  const ensureAd = useCallback((force = false): Promise<boolean> => {
+    if (adRef.current.adFree) return Promise.resolve(true);
+    if (!force && !needsAd()) return Promise.resolve(true);
+    needAd.current = true;
+    if (rewardWait.current) return rewardWait.current;
+    setReward({ open: true, watching: false, note: null });
+    rewardWait.current = new Promise<boolean>((res) => { rewardDone.current = res; });
+    return rewardWait.current;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeReward = useCallback((ok: boolean) => {
+    setReward({ open: false, watching: false, note: null });
+    const d = rewardDone.current;
+    rewardDone.current = null;
+    rewardWait.current = null;
+    d?.(ok);
+  }, []);
+  const watchVideo = useCallback(async () => {
+    setReward((r) => ({ ...r, watching: true, note: null }));
+    const res = await showVideoAd(adRef.current.cfg ?? (await getPublicConfig()));
+    // The video covered the app, which counts as "leaving" it. Wait until we're back on screen, and don't treat our own video as the listener having left.
     for (let i = 0; i < 30 && document.visibilityState !== "visible"; i++) await new Promise((r) => setTimeout(r, 100));
     await new Promise((r) => setTimeout(r, 300));
+    if (res === "skipped") { setReward({ open: true, watching: false, note: "Watch the whole video to unlock listening." }); return; }
     needAd.current = false;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    closeReward(true);
+    toast("Reward unlocked. Enjoy listening!");
+  }, [closeReward]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const left = () => { if (document.visibilityState === "hidden") needAd.current = true; };
+    const left = () => {
+      if (document.visibilityState === "hidden") needAd.current = true;
+      // back from the background with something open and the voice not playing: the reward comes up again
+      else if (sessionRef.current && needsAd()) void ensureAd();
+    };
     document.addEventListener("visibilitychange", left);
     let off: (() => void) | undefined;
     if (isNativeApp()) import("@capacitor/app").then(({ App }) => App.addListener("appStateChange", (st) => { if (!st.isActive) needAd.current = true; })).then((h) => { off = () => void h.remove(); }).catch(() => {});
     return () => { document.removeEventListener("visibilitychange", left); off?.(); };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // warm up the web ad script so the first ad starts quickly
   useEffect(() => { if (!adFree && cfg?.ads.videoTagUrl && !isNativeApp()) { const el = document.createElement("link"); el.rel = "preload"; el.as = "script"; el.href = "https://imasdk.googleapis.com/js/sdkloader/ima3.js"; document.head.appendChild(el); } }, [adFree, cfg]);
 
@@ -171,18 +201,22 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       dirty.current = false;
       setSession({ kind: "book", id, meta, chapterIdx: Math.min(meta.progress.chapterIndex, meta.chapters.length - 1), chapter: null, loadError: null, percent: meta.progress.percent });
       setOpening(null);
+      // reading a free book: the reward video comes up straight away (the chapter then starts by itself if auto-play is on)
+      if (meta.book.isFree && !adRef.current.adFree) { needAd.current = true; void ensureAd(true); }
     } catch (e) {
       setOpening({ id, error: (e as ApiFailure).message || "We couldn't open this book. Please try again." });
     }
-  }, [engine, flush]);
+  }, [engine, flush, ensureAd]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openDoc = useCallback((doc: Doc, autoplay: boolean) => {
+  const openDoc = useCallback((doc: Doc, autoplay: boolean, fresh = false) => {
     flush(true);
     setSession({ kind: "doc", doc });
     setOpening(null);
-    const wait = autoplay && needsAd();
+    // a new text or file: the reward video comes up immediately, and its reward is listening to it
+    if (fresh && !adRef.current.adFree) needAd.current = true;
+    const wait = fresh ? !adRef.current.adFree : autoplay && needsAd();
     engine.load(toChunks(parseBlocks(doc.text)).map((c) => c.text), 0, autoplay && !wait);
-    if (wait) void ensureAd().then(() => startAfterAd());
+    if (wait) void ensureAd(true).then((ok) => { if (ok) void startAfterAd(); });
   }, [engine, flush, ensureAd]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const goChapter = useCallback((i: number, autoplay = false) => {
@@ -197,7 +231,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const pickBlock = useCallback((block: number) => {
     const idx = chunks.findIndex((c) => c.block >= block);
     if (idx < 0) return;
-    if (!engine.playing && needsAd()) { engine.goTo(idx, false); void ensureAd().then(() => startAfterAd()); } else engine.goTo(idx, true);
+    if (!engine.playing && needsAd()) { engine.goTo(idx, false); void ensureAd().then((ok) => { if (ok) void startAfterAd(); }); } else engine.goTo(idx, true);
   }, [chunks, engine, ensureAd]); // eslint-disable-line react-hooks/exhaustive-deps
 
   handlers.current = {
@@ -211,7 +245,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       const s = sessionRef.current;
       if (s?.kind !== "book") return;
       if (s.chapterIdx < s.meta.chapters.length - 1) goChapter(s.chapterIdx + 1, true);
-      else { record({ percent: 100, paragraphIndex: 0, audioTime: 0 }); flush(); }
+      else { record({ percent: 100, paragraphIndex: 0, audioTime: 0 }); flush(); window.dispatchEvent(new CustomEvent("ev:book-finished", { detail: { title: s.meta.book.title } })); }
     },
   };
 
@@ -241,7 +275,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     autoNext.current = false;
     const wait = play && !wasAuto && needsAd();
     engine.load(chunks.map((c) => c.text), startChunk, play && !wait, init && chunks[startChunk]?.block === init.paragraph ? init.audioTime : 0);
-    if (wait) void ensureAd().then(() => startAfterAd());
+    if (wait) void ensureAd().then((ok) => { if (ok) void startAfterAd(); });
     record({ chapterIndex: chapter.index, paragraphIndex: startBlock, percent: init ? progress.current.percent : computePercent(startBlock), audioTime: init?.audioTime ?? 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapter]);
@@ -267,9 +301,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   // what pages and the player buttons use: starting playback from a pause goes through the ad first
   const gated = useMemo(() => ({
     ...engine,
-    play: async () => { await ensureAd(); return startAfterAd(); },
-    toggle: () => (engine.playing || engine.loading || !needsAd() ? engine.toggle() : void ensureAd().then(() => startAfterAd())),
-    goTo: (i: number, autoplay = true, t = 0) => { if (autoplay && !engine.playing && needsAd()) { engine.goTo(i, false, t); void ensureAd().then(() => startAfterAd()); } else engine.goTo(i, autoplay, t); },
+    play: async () => { if (await ensureAd()) return startAfterAd(); },
+    toggle: () => (engine.playing || engine.loading || !needsAd() ? engine.toggle() : void ensureAd().then((ok) => { if (ok) void startAfterAd(); })),
+    goTo: (i: number, autoplay = true, t = 0) => { if (autoplay && !engine.playing && needsAd()) { engine.goTo(i, false, t); void ensureAd().then((ok) => { if (ok) void startAfterAd(); }); } else engine.goTo(i, autoplay, t); },
   }) as Engine, [engine, ensureAd]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const value: Ctx = { engine: gated, session, opening, blocks, chunks, voice, setVoice, speed, setSpeed, openBook, openDoc, goChapter, retryChapter, pickBlock, stop, openFull: () => setFull(true) };
@@ -278,6 +312,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   return (
     <C.Provider value={value}>
       {children}
+      <RewardGate open={reward.open} watching={reward.watching} note={reward.note} onWatch={() => void watchVideo()} onClose={() => closeReward(false)} />
       {active && (
         <div data-hide-on-kb className={`safe-b fixed inset-x-0 bottom-[4.2rem] z-30 px-3 min-[740px]:bottom-3 min-[740px]:left-60 lg:left-[17rem] ${onOwnPage ? "xl:hidden" : "lg:bottom-4 lg:left-auto lg:right-4 lg:w-[26rem]"}`}>
           <div className="mx-auto flex max-w-lg items-center gap-2 rounded-full border border-line bg-surface p-2 pr-3 shadow-pop">

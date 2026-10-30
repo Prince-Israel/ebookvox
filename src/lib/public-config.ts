@@ -11,7 +11,7 @@ export type PublicConfig = {
   ads: {
     adsense: { client: string; slots: { homeTop: string | null; homeBottom: string | null } } | null;
     videoTagUrl: string | null;
-    admob: { testing: boolean; android: { banner: string; video: string }; ios: { banner: string; video: string } };
+    admob: { testing: boolean; android: { banner: string; video: string; rewarded: string | null }; ios: { banner: string; video: string; rewarded: string | null } };
   };
 };
 

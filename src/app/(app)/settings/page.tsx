@@ -80,7 +80,7 @@ export default function SettingsPage() {
         <form onSubmit={changePassword} className="space-y-4" noValidate>
           <h3 className="text-lg font-semibold">Change password</h3>
           {pwMsg && Object.keys(pwErr).length === 0 && <Banner tone="danger">{pwMsg}</Banner>}
-          {!user.hasPassword && <Banner>You signed in with Google or Apple. Set a password to also sign in with your email.</Banner>}
+          {!user.hasPassword && <Banner>You signed in with Google. Set a password to also sign in with your email.</Banner>}
           {user.hasPassword && <Input label="Current password" id="pw-current" name="current-password" type="password" autoComplete="current-password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} error={pwErr.currentPassword} />}
           <Input label="New password" id="pw-new" name="new-password" type="password" autoComplete="new-password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} error={pwErr.newPassword} hint="At least 8 characters with upper and lower case letters and a number." />
           <Input label="Confirm new password" id="pw-confirm" name="confirm-password" type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} error={pwErr.confirmPassword} />

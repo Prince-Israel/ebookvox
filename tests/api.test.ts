@@ -142,11 +142,11 @@ async function main() {
   ok((await u.post("/api/auth/signin", { email, password: pw })).status === 401, "old password no longer works");
   ok((await u.post("/api/auth/signin", { email, password: "NewPassw0rd" })).status === 200, "new password works");
 
-  section("Social login (Google / Apple)");
+  section("Social login (Google only)");
   const g = await u.req("GET", "/api/auth/oauth/google/start");
   ok(g.status === 307 && /error=google_not_configured/.test(g.res.headers.get("location") ?? ""), "Google start degrades gracefully when not configured", g.res.headers.get("location"));
   const ap = await u.req("GET", "/api/auth/oauth/apple/start");
-  ok(ap.status === 307 && /apple_not_configured/.test(ap.res.headers.get("location") ?? ""), "Apple start degrades gracefully when not configured");
+  ok(ap.status === 307 && /oauth_unknown/.test(ap.res.headers.get("location") ?? ""), "Apple sign-in is switched off");
   const cb = await u.req("POST", "/api/auth/oauth/google/callback", new FormData());
   ok(cb.status === 303, "OAuth callback without code is rejected safely");
 
@@ -484,8 +484,39 @@ async function main() {
     ok((await other.post(`/api/documents/${docId}/audio`, { voice: "en-NG-EzinneNeural", from: 0 })).status === 404, "nobody else can download someone's document audio");
   }
 
+  section("Reader emails: continue where you stopped + new books");
+  {
+    const SECRET = "test-cron-secret-123456";
+    ok((await fetch(BASE + "/api/cron/digest", { method: "POST" })).status === 401 && (await fetch(BASE + "/api/cron/digest", { method: "POST", headers: { "x-cron-secret": "wrong-wrong-wrong-1" } })).status === 401, "the weekly email endpoint needs the secret");
+    const dEmail = `digest.${stamp}@example.com`;
+    const dc = new Client();
+    const dr = await dc.req("POST", "/api/auth/signup", { firstName: "Dina", lastName: "Reader", email: dEmail, password: pw, acceptTerms: true, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8012345678" }, { headers: { "x-forwarded-for": "203.0.113.93" } });
+    const dUid = dr.data.user.id;
+    const dBook = await db.book.findFirst({ where: { isFree: true, status: "APPROVED" } });
+    const longAgo = new Date(Date.now() - 10 * 86400_000);
+    await db.user.update({ where: { id: dUid }, data: { emailVerifiedAt: new Date() } });
+    await db.session.updateMany({ where: { userId: dUid }, data: { createdAt: longAgo } });
+    await db.userBook.create({ data: { userId: dUid, bookId: dBook!.id, source: "FREE", lastOpenedAt: longAgo, percent: 42 } });
+    const dry = await (await fetch(BASE + "/api/cron/digest?dry=1", { method: "POST", headers: { "x-cron-secret": SECRET } })).json();
+    ok(dry.dryRun === true && dry.sent >= 1 && !(await db.emailLog.findFirst({ where: { toEmail: dEmail, subject: { startsWith: "Your Ebookvox reading update" } } })), "a dry run counts the readers who would get the email without sending any");
+    const real = await fetch(BASE + "/api/cron/digest", { method: "POST", headers: { "x-cron-secret": SECRET } });
+    const mail = await db.emailLog.findFirst({ where: { toEmail: dEmail, subject: { startsWith: "Your Ebookvox reading update" } } });
+    ok(real.status === 200 && !!mail && mail.subject.includes(dBook!.title) && mail.body.includes("Continue where you stopped") && mail.body.includes(`/read/${dBook!.id}`) && mail.body.includes("42% done"), "a reader who stopped mid-book gets a “continue where you stopped” email", mail?.subject);
+    await fetch(BASE + "/api/cron/digest", { method: "POST", headers: { "x-cron-secret": SECRET } });
+    ok((await db.emailLog.count({ where: { toEmail: dEmail, subject: { startsWith: "Your Ebookvox reading update" } } })) === 1, "nobody gets the email more than once a week");
+    // active readers and readers who switched new-book updates off are left alone
+    const lazy = new Client();
+    const lEmail = `quiet.${stamp}@example.com`;
+    const lr = await lazy.req("POST", "/api/auth/signup", { firstName: "Quinn", lastName: "Quiet", email: lEmail, password: pw, acceptTerms: true, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8012345678" }, { headers: { "x-forwarded-for": "203.0.113.94" } });
+    await db.user.update({ where: { id: lr.data.user.id }, data: { emailVerifiedAt: new Date(), notifyBooks: false } });
+    await db.session.updateMany({ where: { userId: lr.data.user.id }, data: { createdAt: longAgo } });
+    await fetch(BASE + "/api/cron/digest", { method: "POST", headers: { "x-cron-secret": SECRET } });
+    ok((await db.emailLog.count({ where: { toEmail: lEmail, subject: { startsWith: "Your Ebookvox reading update" } } })) === 0, "readers who turned new-book updates off get nothing");
+  }
+
   section("Public config, ads.txt, mobile Google/Apple sign-in");
   const cfg = (await new Client().get("/api/public-config")).data;
+  ok(typeof cfg.ads.admob.android.rewarded === "string" && typeof cfg.ads.admob.ios.rewarded === "string", "the mobile reward-video units are in the public config (Google test units until real ones are set)");
   ok(/\/sign-up$/.test(cfg.publisherSignUpUrl) && cfg.publisherSignUpUrl.startsWith(cfg.publisherUrl) && typeof cfg.apkUrl === "string" && cfg.playStoreUrl === "https://play.google.com/store/apps/details?id=app.ebookvox.reader" && cfg.appStoreUrl === null && cfg.ads.adsense?.client === "ca-pub-1234567890123456" && cfg.ads.adsense.slots.homeTop === "1111111111" && cfg.ads.adsense.slots.homeBottom === "2222222222" && cfg.ads.videoTagUrl === "https://ads.example.test/vast.xml" && cfg.ads.admob.testing === true && cfg.ads.admob.android.banner.startsWith("ca-app-pub-3940256099942544"), "public config gives the Publisher sign-up link, store links, the AdSense/video ad settings, and Google's TEST AdMob ids until real ones are set", cfg);
   ok(!JSON.stringify(cfg).match(/secret|password|key/i), "public config contains no secrets");
   const adsTxt = await fetch(BASE + "/ads.txt");

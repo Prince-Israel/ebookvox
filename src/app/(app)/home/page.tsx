@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, BookOpen, ClipboardPaste, FileText, FileUp, History, Sparkles, Trash2, Type, UploadCloud, X } from "lucide-react";
+import { AlertCircle, BookOpen, ClipboardPaste, FileText, FileUp, History, Play, Sparkles, Trash2, Type, UploadCloud, X } from "lucide-react";
 import { Async, Badge, Button, Card, EmptyState, ErrorState, Skeleton, Textarea, cx, useToast, when } from "@/components/ui";
 import { Cover } from "@/components/Cover";
 import { DocView } from "@/components/DocView";
@@ -43,6 +43,8 @@ export default function HomePage() {
   const recent = useApi<{ documents: Array<{ id: string; title: string; kind: string; createdAt: string }> }>(user ? "/api/documents" : null, "We couldn't load your recent documents.");
   const library = useApi<{ reading: Array<{ id: string; title: string; author: string; coverHue: number; coverUrl: string | null; percent: number }> }>(user ? "/api/library" : null, "We couldn't load your books.");
 
+  const resume = library.data?.reading?.[0] ?? null; // the book they were last in the middle of
+
   // Text typed while signed out is kept, so it is waiting for them right after they register or sign in.
   useEffect(() => {
     try {
@@ -51,8 +53,8 @@ export default function HomePage() {
     } catch {}
   }, [user]);
 
-  function start(d: Doc, autoplay: boolean) {
-    pb.openDoc(d, autoplay);
+  function start(d: Doc, autoplay: boolean, fresh = false) {
+    pb.openDoc(d, autoplay, fresh);
     recent.reload();
     setTimeout(() => document.getElementById("reader")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
@@ -66,7 +68,7 @@ export default function HomePage() {
     setBusy("save");
     try {
       const { document: d } = await api<{ document: Doc }>("/api/documents", { method: "POST", json: { text } });
-      start(d, true);
+      start(d, true, true);
     } catch (e) {
       toast((e as ApiFailure).message, "error");
     }
@@ -91,7 +93,7 @@ export default function HomePage() {
       const { document: d } = await api<{ document: Doc }>("/api/extract", { method: "POST", body: fd });
       clearTimeout(t);
       setStage("Preparing audio…");
-      start(d, user!.autoPlay);
+      start(d, user!.autoPlay, true);
     } catch (e) {
       setUploadError((e as ApiFailure).message);
     }
@@ -133,6 +135,20 @@ export default function HomePage() {
     <div className="space-y-10">
       <NativeBanners />
       <AdSlot name="homeTop" className="-mb-4" />
+      {resume && (
+        <section aria-label="Continue where you stopped" className="anim-up -mb-2">
+          <Link href={`/read/${resume.id}`} className="flex items-center gap-4 rounded-3xl border border-line bg-accent-soft p-4 text-accent-fg shadow-card transition hover:brightness-95 sm:p-5">
+            <div className="w-14 shrink-0 sm:w-16"><Cover title={resume.title} author={resume.author} hue={resume.coverHue} url={resume.coverUrl} /></div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-widest">Continue where you stopped</p>
+              <p className="mt-1 truncate font-serif text-xl font-semibold">{resume.title}</p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(3, Math.round(resume.percent))}%` }} /></div>
+              <p className="mt-1 text-xs">{Math.round(resume.percent)}% done</p>
+            </div>
+            <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-primary-fg"><Play className="ml-0.5 size-5 fill-current" /></span>
+          </Link>
+        </section>
+      )}
       <section className="anim-up">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-accent">Your Words. Our Voice.</p>
         <h1 className="mt-2 text-4xl font-semibold sm:text-5xl">{user ? `Welcome back, ${user.firstName}` : "Welcome to Ebookvox"}</h1>

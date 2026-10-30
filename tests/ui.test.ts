@@ -20,6 +20,8 @@ const email = `ui.${stamp}@example.com`;
 const pw = "Sup3rSecret!";
 
 // Record every Audio element so tests can inspect playback state.
+// In the general tests the reward video is watched for the listener at once (the dedicated ad tests below click it themselves).
+const AUTO_WATCH = `(() => { setInterval(() => { const d = document.querySelector('[role=dialog][aria-label="Watch a video to listen"]'); const b = d && [...d.querySelectorAll("button")].find((x) => /^\\s*Watch video/.test(x.textContent || "")); if (b && !b.disabled) b.click(); }, 150); })();`;
 const INIT = `(() => { window.__name = (f) => f; window.__audios = []; window.__cur = null; const A = window.Audio; window.Audio = function(...a){ const el = new A(...a); window.__audios.push(el); el.addEventListener('play', () => { if (!el.src.startsWith('data:')) window.__cur = el; }); return el; }; window.Audio.prototype = A.prototype; })();`;
 const audioState = (p: Page) => p.evaluate(() => { const a = (window as any).__cur as HTMLAudioElement | null; return a ? { paused: a.paused, t: a.currentTime, rate: a.playbackRate, src: a.src, vol: a.volume, dur: a.duration } : null; });
 
@@ -32,11 +34,12 @@ function lum(rgb: number[]) { const f = (v: number) => { v /= 255; return v <= 0
 const ratio = (a: number[], b: number[]) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
 const parseRgb = (s: string) => (s.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
 
-const IMA_STUB = `window.__ads={requests:0,started:0};window.google={ima:{AdDisplayContainer:function(){this.initialize=function(){}},AdsLoader:function(){var L={};this.addEventListener=function(t,cb){L[t]=cb};this.requestAds=function(){window.__ads.requests++;setTimeout(function(){L.adsManagerLoaded({getAdsManager:function(){var M={};return{addEventListener:function(t,cb){M[t]=cb},init:function(){},start:function(){window.__ads.started++;M.start&&M.start();setTimeout(function(){M.allAdsCompleted&&M.allAdsCompleted()},300)},destroy:function(){}}}})},40)}},AdsRequest:function(){},AdErrorEvent:{Type:{AD_ERROR:"adError"}},AdsManagerLoadedEvent:{Type:{ADS_MANAGER_LOADED:"adsManagerLoaded"}},AdEvent:{Type:{ALL_ADS_COMPLETED:"allAdsCompleted",SKIPPED:"skipped",CONTENT_RESUME_REQUESTED:"resume",USER_CLOSE:"close",STARTED:"start"}},ViewMode:{NORMAL:"n"}}};`;
+const IMA_STUB = `window.__ads={requests:0,started:0};window.google={ima:{AdDisplayContainer:function(){this.initialize=function(){}},AdsLoader:function(){var L={};this.addEventListener=function(t,cb){L[t]=cb};this.requestAds=function(){window.__ads.requests++;setTimeout(function(){L.adsManagerLoaded({getAdsManager:function(){var M={};return{addEventListener:function(t,cb){M[t]=cb},init:function(){},start:function(){window.__ads.started++;M.start&&M.start();setTimeout(function(){var k=window.__adMode==="skip"?"skipped":"allAdsCompleted";M[k]&&M[k]()},300)},destroy:function(){}}}})},40)}},AdsRequest:function(){},AdErrorEvent:{Type:{AD_ERROR:"adError"}},AdsManagerLoadedEvent:{Type:{ADS_MANAGER_LOADED:"adsManagerLoaded"}},AdEvent:{Type:{ALL_ADS_COMPLETED:"allAdsCompleted",SKIPPED:"skipped",CONTENT_RESUME_REQUESTED:"resume",USER_CLOSE:"close",STARTED:"start"}},ViewMode:{NORMAL:"n"}}};`;
 async function main() {
   const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
   const phone: BrowserContext = await browser.newContext({ ...devices["iPhone 13"], permissions: [] });
   await phone.addInitScript(INIT);
+  await phone.addInitScript(AUTO_WATCH);
   const p = await phone.newPage();
   p.on("pageerror", (e) => console.log("   [pageerror]", e.message));
   const shot = (name: string) => p.screenshot({ path: `${SHOTS}/${name}.png` });
@@ -90,9 +93,10 @@ async function main() {
   await p.goto(BASE + "/sign-up");
   await shot("04-signup");
   ok((await p.getByRole("link", { name: /Get Ebookvox on Google Play/ }).count()) === 0 && (await p.getByText("Get the app", { exact: false }).count()) === 0, "inside the mobile app the sign-up screen has no “Get the app” section at all (you already have the app)");
-  const google = p.getByRole("link", { name: /with Google/ }), apple = p.getByRole("link", { name: /with Apple/ });
-  const gb = await google.boundingBox(), ab = await apple.boundingBox();
-  ok(gb && ab && gb.height >= 52 && ab.height >= 52 && gb.width > 250, `Google/Apple buttons large (${gb?.height}px high)`);
+  const google = p.getByRole("link", { name: /with Google/ });
+  const gb = await google.boundingBox();
+  ok(gb && gb.height >= 52 && gb.width > 250, `the Google button is large (${gb?.height}px high)`);
+  ok((await p.getByText(/with Apple/).count()) === 0, "there is no Sign up with Apple option");
   await p.locator("#su-first").fill("Ada");
   await p.locator("#su-last").fill("Okafor");
   await p.locator("#su-email").fill(email);
@@ -501,7 +505,7 @@ async function main() {
     ok(await w.getByRole("link", { name: /Get Ebookvox on Google Play/ }).first().isVisible(), "the sign-in page shows the app badges");
     ok(((await w.getByRole("link", { name: /with Google/ }).getAttribute("href")) ?? "").startsWith("/api/auth/oauth/google/start"), "Continue with Google is a plain link on the website");
     await w.goto(BASE + "/sign-in?next=%2Flibrary");
-    ok((await w.getByRole("link", { name: /with Apple/ }).getAttribute("href")) === "/api/auth/oauth/apple/start?next=%2Flibrary", "the destination survives the Apple sign-in round trip");
+    ok((await w.getByRole("link", { name: /with Google/ }).getAttribute("href")) === "/api/auth/oauth/google/start?next=%2Flibrary" && (await w.getByText(/with Apple/).count()) === 0, "the destination survives the Google sign-in round trip, and there is no Apple option");
     await w.screenshot({ path: path.join(SHOTS, "web-badges.png") }).catch(() => {});
     // ---- ads: banners for visitors, a video before the voice, all gone for subscribers ----
     ok((await w.locator("ins.adsbygoogle").count()) === 0, "(Sign-in page has no ads)");
@@ -529,18 +533,52 @@ async function main() {
     const speaking = () => gp.waitForFunction(() => { const a = (window as any).__cur; return a && !a.paused && a.currentTime > 0.2 && !a.src.startsWith("data:"); }, null, { timeout: 40000 });
     await gp.goto(BASE + "/home");
     await gp.locator("#ra-text").fill("This is the text for the ad test.\n\n" + Array.from({ length: 6 }, (_, i) => `Paragraph ${i + 1} gives the player enough to say while we check the ads.`).join("\n\n"));
+    const gate = gp.getByRole("dialog", { name: "Watch a video to listen" });
     await gp.getByRole("button", { name: "Read Aloud", exact: true }).click();
+    await gate.waitFor({ timeout: 15000 });
+    ok(await gate.getByText("Your reward: listening, free").isVisible() && (await adCount()) === 0, "a new text brings up the reward straight away: watch a video to listen");
+    // closing the video early earns nothing
+    await gp.evaluate(() => { (window as any).__adMode = "skip"; });
+    await gate.getByRole("button", { name: "Watch video" }).click();
+    await gate.getByText("Watch the whole video to unlock listening.").waitFor({ timeout: 15000 });
+    await gp.waitForTimeout(800);
+    ok(await gate.isVisible() && (await gp.evaluate(() => { const a = (window as any).__cur; return !a || a.paused || a.src.startsWith("data:"); })), "skipping the video unlocks nothing: the voice stays silent and the reward asks again");
+    await gp.evaluate(() => { (window as any).__adMode = "done"; });
+    await gate.getByRole("button", { name: "Watch video" }).click();
     await speaking();
-    ok((await adCount()) === 1, "a video ad plays once before the voice starts reading", await gp.evaluate(() => (window as any).__ads));
+    await gp.waitForFunction(() => (window as any).__ads?.started >= 2, null, { timeout: 10000 }).catch(() => {});
+    ok((await adCount()) === 2 && (await gate.count()) === 0, "watching the video to the end is the reward: the voice starts reading", await gp.evaluate(() => (window as any).__ads));
     await gp.getByRole("button", { name: "Pause", exact: true }).first().click();
     await gp.getByRole("button", { name: "Play", exact: true }).first().click();
     await gp.waitForFunction(() => (window as any).__cur?.paused === false, null, { timeout: 20000 });
-    ok((await adCount()) === 1, "pausing and resuming within the same listening session shows no second ad");
+    ok((await adCount()) === 2 && (await gate.count()) === 0, "pausing and resuming within the same listening session shows no second video");
     await gp.getByRole("button", { name: "Pause", exact: true }).first().click();
+    await gp.waitForFunction(() => (window as any).__cur?.paused === true, null, { timeout: 10000 });
+    await gp.waitForTimeout(500);
     await gp.evaluate(() => { Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true }); document.dispatchEvent(new Event("visibilitychange")); Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true }); document.dispatchEvent(new Event("visibilitychange")); });
+    await gate.waitFor({ timeout: 15000 });
+    ok(true, "after the listener leaves the app and comes back, the reward comes up again");
+    await gate.getByRole("button", { name: "Watch video" }).click();
+    await gate.waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
     await gp.getByRole("button", { name: "Play", exact: true }).first().click();
-    await gp.waitForFunction(() => (window as any).__ads.started === 2 && (window as any).__cur?.paused === false, null, { timeout: 40000 });
-    ok((await adCount()) === 2, "after the listener leaves the app and comes back, the ad plays again before the voice");
+    await gp.waitForFunction(() => (window as any).__cur?.paused === false, null, { timeout: 40000 });
+    ok((await adCount()) === 3, "watching it again lets the listening continue");
+    // another new text: the reward comes up immediately, even in the same session
+    await gp.locator("#ra-text").fill("A second text, which needs its own reward video. " + "More words to read. ".repeat(12));
+    await gp.getByRole("button", { name: "Read Aloud", exact: true }).click();
+    await gate.waitFor({ timeout: 15000 });
+    ok(true, "every new text or file brings up the reward video immediately");
+    await gate.getByRole("button", { name: "Watch video" }).click();
+    await speaking();
+    ok((await adCount()) === 4, "…and watching it starts the new text");
+    // a free book: the reward comes up as soon as it is opened
+    const freeBook = await db.book.findFirst({ where: { isFree: true, status: "APPROVED" } });
+    await gp.request.post(BASE + `/api/books/${freeBook!.id}/claim`);
+    await gp.goto(BASE + `/read/${freeBook!.id}`);
+    await gate.waitFor({ timeout: 20000 });
+    ok(true, "reading a free book brings up the reward video straight away");
+    await gate.getByRole("button", { name: "Not now" }).click();
+    ok((await gate.count()) === 0, "“Not now” closes the reward without listening");
     // subscribe (database shortcut for the payment) → every ad disappears
     const gu = await db.user.findFirst({ where: { email: gmail } });
     await db.subscription.create({ data: { userId: gu!.id, plan: "MONTHLY", currentPeriodEnd: new Date(Date.now() + 20 * 86400_000) } });
@@ -550,13 +588,49 @@ async function main() {
     await gp.locator("#ra-text").fill("Subscribers hear this straight away, with no advertisement before it begins. " + "More words to read. ".repeat(20));
     await gp.getByRole("button", { name: "Read Aloud", exact: true }).click();
     await speaking();
-    ok((await adCount()) === 0, "a subscriber hears the voice with no video ad");
+    ok((await adCount()) === 0 && (await gp.getByRole("dialog", { name: "Watch a video to listen" }).count()) === 0, "a subscriber hears the voice with no video ad and no reward prompt");
     await gp.goto(BASE + "/subscribe");
     await gp.getByRole("heading", { name: "You're ad-free" }).waitFor({ timeout: 15000 });
     ok(await gp.getByRole("heading", { name: "You're ad-free" }).isVisible() && await gp.getByText("active until").isVisible(), "the subscription page shows the active plan and its end date");
     ok(await gp.getByRole("link", { name: /Subscription/ }).first().isVisible(), "the menu says “Subscription” once subscribed");
     await gc.close();
 
+  }
+
+  section("Keep readers coming back: continue card, Google Play review");
+  {
+    const rc = await browser.newContext({ ...devices["Pixel 7"], extraHTTPHeaders: { "cf-ipcountry": "NG" } });
+    await rc.addInitScript(INIT);
+    const rp = await rc.newPage();
+    const rEmail = `resume.${Date.now().toString(36)}@example.com`;
+    await rp.request.post(BASE + "/api/auth/signup", { data: { firstName: "Resume", lastName: "Reader", email: rEmail, password: pw, acceptTerms: true, confirmPassword: pw, country: "NG", phoneCountry: "NG", phone: "8012345678" } });
+    const ru = await db.user.findFirst({ where: { email: rEmail } });
+    const rb = await db.book.findFirst({ where: { isFree: true, status: "APPROVED" } });
+    await db.userBook.create({ data: { userId: ru!.id, bookId: rb!.id, source: "FREE", lastOpenedAt: new Date(), percent: 35 } });
+    await rp.goto(BASE + "/home");
+    const card = rp.getByRole("link", { name: /Continue where you stopped/ });
+    await card.waitFor({ timeout: 15000 });
+    ok((await card.getAttribute("href")) === `/read/${rb!.id}` && (await card.innerText()).includes("35% done") && (await card.innerText()).includes(rb!.title), "Home opens with a “Continue where you stopped” card for the book they were in the middle of");
+    // finishing a book on Android asks if they enjoy Ebookvox, then sends happy readers to Google Play
+    await rp.evaluate(() => window.dispatchEvent(new CustomEvent("ev:book-finished", { detail: { title: "Test Book" } })));
+    const rev = rp.getByRole("dialog", { name: "You finished a book" });
+    await rev.waitFor({ timeout: 5000 });
+    ok(await rev.getByText("Are you enjoying Ebookvox?").isVisible(), "finishing a book on Android asks if they are enjoying Ebookvox");
+    await rev.getByRole("button", { name: /Yes, I love it/ }).click();
+    const popup = rp.waitForEvent("popup", { timeout: 10000 });
+    await rp.getByRole("button", { name: /Rate Ebookvox on Google Play/ }).click();
+    ok(/play\.google\.com\/store\/apps\/details\?id=app\.ebookvox\.reader/.test((await popup).url()), "happy readers are sent to the Ebookvox page on Google Play to leave a review");
+    await rp.evaluate(() => window.dispatchEvent(new CustomEvent("ev:book-finished", { detail: { title: "Another" } })));
+    await rp.waitForTimeout(600);
+    ok((await rp.getByRole("dialog", { name: "You finished a book" }).count()) === 0, "once asked, they are not asked again for 60 days");
+    await rc.close();
+    const dc = await browser.newContext({ viewport: { width: 1280, height: 800 }, extraHTTPHeaders: { "cf-ipcountry": "NG" } });
+    const dpg = await dc.newPage();
+    await dpg.goto(BASE + "/home");
+    await dpg.evaluate(() => window.dispatchEvent(new CustomEvent("ev:book-finished", { detail: { title: "Test Book" } })));
+    await dpg.waitForTimeout(500);
+    ok((await dpg.getByRole("dialog", { name: "You finished a book" }).count()) === 0, "readers who are not on Android are not asked to review on Google Play");
+    await dc.close();
   }
 
   section("Responsive sweep (iPhone, Android, tablet, desktop)");

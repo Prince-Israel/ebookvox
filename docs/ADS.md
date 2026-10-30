@@ -94,3 +94,15 @@ Options when you publish:
 2. **Fully compliant:** add native purchases (e.g. RevenueCat or the Capacitor purchases plugins) with the same $2 / $21.60 products and have the server mark the account ad-free from the store receipt. This is real extra work and extra store fees.
 
 Get advice for your situation before submitting; policies change.
+
+## Reward video: "watch a video to listen"
+
+Free (non-subscribed) listeners watch one short video before the voice reads. The reward is access to listen.
+- It comes up **immediately** when they submit a new text, upload a file, or open a free book, and again once they have left or closed the app (or logged out) and come back.
+- A video watched to the end unlocks listening. Closing or skipping it early does not: the reward asks again.
+- If there is nothing to show (no ad configured, blocked, no fill) it never blocks listening.
+- Subscribers never see it.
+
+Set up:
+- **Website:** the same VAST tag as before (`VIDEO_AD_TAG_URL`).
+- **Mobile apps:** create a **Rewarded** ad unit in AdMob for each platform and set `ADMOB_ANDROID_REWARDED_ID` and `ADMOB_IOS_REWARDED_ID` in the Reader `.env`. Without them the apps use the interstitial video units (and Google's test rewarded units while `ADMOB_TESTING` is on).

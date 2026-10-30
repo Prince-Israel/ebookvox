@@ -13,7 +13,7 @@ export const GET = route(async (_req, { params }: { params: Promise<{ id: string
   const started = !!ub.lastOpenedAt;
   await db.userBook.update({ where: { id: ub.id }, data: { lastOpenedAt: new Date() } });
   return {
-    book: { id, title: ub.book.title, author: ub.book.author, category: ub.book.category, totalChars: ub.book.totalChars, coverHue: ub.book.coverHue, coverUrl: coverSrc(id, ub.book.coverUrl) },
+    book: { id, title: ub.book.title, author: ub.book.author, category: ub.book.category, totalChars: ub.book.totalChars, isFree: ub.book.isFree, coverHue: ub.book.coverHue, coverUrl: coverSrc(id, ub.book.coverUrl) },
     chapters,
     progress: { chapterIndex: ub.chapterIndex, paragraphIndex: ub.paragraphIndex, audioTime: ub.audioTime, percent: ub.percent, completed: !!ub.completedAt, started },
   };

@@ -3,6 +3,7 @@ import { getUser, publicUserFull } from "@/lib/auth";
 import { UserProvider } from "@/components/UserContext";
 import { AppShell } from "@/components/AppShell";
 import { PlaybackProvider } from "@/components/audio/PlaybackProvider";
+import { ReviewPrompt } from "@/components/ReviewPrompt";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <UserProvider initial={user ? await publicUserFull(user) : null} initialUnread={unread}>
       <PlaybackProvider>
         <AppShell>{children}</AppShell>
+        <ReviewPrompt />
       </PlaybackProvider>
     </UserProvider>
   );

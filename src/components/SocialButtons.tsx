@@ -10,17 +10,12 @@ const Google = () => (
     <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.9 6.2C6.5 42.6 14.6 48 24 48z" />
   </svg>
 );
-const Apple = () => (
-  <svg viewBox="0 0 384 512" className="size-7 fill-current" aria-hidden>
-    <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
-  </svg>
-);
 
 export function SocialButtons({ verb = "Continue", next }: { verb?: string; next?: string | null }) {
   const q = (mobile: boolean) => { const p = new URLSearchParams(); if (mobile) p.set("mobile", "1"); if (next && next.startsWith("/") && !next.startsWith("//")) p.set("next", next); const s = p.toString(); return s ? `?${s}` : ""; };
-  // In the iOS/Android app, Google and Apple refuse to sign in inside an embedded web view, so open the phone's own browser instead
+  // In the iOS/Android app, Google refuses to sign in inside an embedded web view, so open the phone's own browser instead
   // (it returns to the app through ebookvox://oauth — see NativeBridge).
-  async function open(e: React.MouseEvent, provider: "google" | "apple") {
+  async function open(e: React.MouseEvent, provider: "google") {
     if (!isNativeApp()) return; // on the web the plain link does the job
     e.preventDefault();
     try {
@@ -32,8 +27,7 @@ export function SocialButtons({ verb = "Continue", next }: { verb?: string; next
   return (
     <div className="space-y-3">
       <a href={`/api/auth/oauth/google/start${q(false)}`} onClick={(e) => open(e, "google")} className={cls}><Google /> {verb} with Google</a>
-      <a href={`/api/auth/oauth/apple/start${q(false)}`} onClick={(e) => open(e, "apple")} className={cls}><Apple /> {verb} with Apple</a>
-      {verb === "Sign up" && <p className="px-2 text-center text-xs text-muted">By continuing with Google or Apple you agree to our <LegalLink href="/terms">Terms &amp; Conditions</LegalLink> and <LegalLink href="/privacy">Privacy Policy</LegalLink>.</p>}
+      {verb === "Sign up" && <p className="px-2 text-center text-xs text-muted">By continuing with Google you agree to our <LegalLink href="/terms">Terms &amp; Conditions</LegalLink> and <LegalLink href="/privacy">Privacy Policy</LegalLink>.</p>}
       <div className="flex items-center gap-3 py-2 text-xs uppercase tracking-widest text-muted"><span className="h-px flex-1 bg-line" />or with email<span className="h-px flex-1 bg-line" /></div>
     </div>
   );

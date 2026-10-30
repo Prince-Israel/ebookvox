@@ -1,3 +1,5 @@
+> **Apple sign-in is switched off.** Only Google is offered. The Apple code is still in the project but unreachable: to turn it on again, add `"apple"` back to `isProvider` in `src/lib/oauth.ts` and restore the button in `src/components/SocialButtons.tsx`. Note: Apple's App Store rule 4.8 requires Sign in with Apple in an iOS App Store app that offers Google sign-in, so add it back before you publish on the App Store.
+
 # "Sign in with Google / Apple" — web and mobile
 
 Both buttons are already on the Sign in and Create account screens and work in the website **and** inside the iOS/Android apps. They stay inert until you add the credentials.

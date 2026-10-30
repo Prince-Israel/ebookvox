@@ -30,7 +30,7 @@ export default function DeleteAccount() {
       <Section n={3} title="What is deleted">
         <Ul>
           <li>Your name, email address, phone number and profile photo.</li>
-          <li>Your sign-in details, including Google or Apple sign-in links, and all of your active sessions.</li>
+          <li>Your sign-in details, including the Google sign-in link, and all of your active sessions.</li>
           <li>Your library, reading progress and settings.</li>
           <li>Documents and text you uploaded for read-aloud.</li>
           <li>Your support messages and photos you attached.</li>

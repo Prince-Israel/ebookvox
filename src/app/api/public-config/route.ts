@@ -14,6 +14,7 @@ const BUILT = (() => {
 export const GET = route(async () => {
   const e = process.env;
   const publisherUrl = (e.PUBLISHER_PUBLIC_URL ?? "http://localhost:3240").replace(/\/$/, "");
+  const testing = e.ADMOB_TESTING === "true" || !(e.ADMOB_ANDROID_BANNER_ID && e.ADMOB_ANDROID_VIDEO_ID && e.ADMOB_IOS_BANNER_ID && e.ADMOB_IOS_VIDEO_ID);
   return {
     build: BUILT,
     publisherUrl,
@@ -27,10 +28,11 @@ export const GET = route(async () => {
       // Website: the video ad before the voice starts (a VAST tag, e.g. from Google Ad Manager / AdSense for Video), played through Google's IMA SDK
       videoTagUrl: e.VIDEO_AD_TAG_URL || null,
       // Mobile apps (AdMob). Anything not configured falls back to Google's TEST ads, which are safe to click and never earn money.
+      // "rewarded" is the unit used for the watch-to-listen video; without one of your own, the interstitial "video" unit is used (and Google's test rewarded unit while testing).
       admob: {
-        testing: e.ADMOB_TESTING === "true" || !(e.ADMOB_ANDROID_BANNER_ID && e.ADMOB_ANDROID_VIDEO_ID && e.ADMOB_IOS_BANNER_ID && e.ADMOB_IOS_VIDEO_ID),
-        android: { banner: e.ADMOB_ANDROID_BANNER_ID || "ca-app-pub-3940256099942544/6300978111", video: e.ADMOB_ANDROID_VIDEO_ID || "ca-app-pub-3940256099942544/8691691433" },
-        ios: { banner: e.ADMOB_IOS_BANNER_ID || "ca-app-pub-3940256099942544/2934735716", video: e.ADMOB_IOS_VIDEO_ID || "ca-app-pub-3940256099942544/5135589807" },
+        testing,
+        android: { banner: e.ADMOB_ANDROID_BANNER_ID || "ca-app-pub-3940256099942544/6300978111", video: e.ADMOB_ANDROID_VIDEO_ID || "ca-app-pub-3940256099942544/8691691433", rewarded: e.ADMOB_ANDROID_REWARDED_ID || (testing ? "ca-app-pub-3940256099942544/5224354917" : null) },
+        ios: { banner: e.ADMOB_IOS_BANNER_ID || "ca-app-pub-3940256099942544/2934735716", video: e.ADMOB_IOS_VIDEO_ID || "ca-app-pub-3940256099942544/5135589807", rewarded: e.ADMOB_IOS_REWARDED_ID || (testing ? "ca-app-pub-3940256099942544/1712485313" : null) },
       },
     },
   };

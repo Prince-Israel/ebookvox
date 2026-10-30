@@ -6,7 +6,8 @@ import { currencyForCountry, isCountry } from "./countries";
 import { welcome } from "./account";
 
 export type Provider = "google" | "apple";
-export const isProvider = (p: string): p is Provider => p === "google" || p === "apple";
+// Apple sign-in is switched off: only Google is offered. (The Apple code below stays dormant; add "apple" here and the button back to turn it on again.)
+export const isProvider = (p: string): p is Provider => p === "google";
 
 const appUrl = () => (process.env.APP_URL ?? "http://localhost:3230").replace(/\/$/, "");
 export const redirectUri = (p: Provider) => `${appUrl()}/api/auth/oauth/${p}/callback`;

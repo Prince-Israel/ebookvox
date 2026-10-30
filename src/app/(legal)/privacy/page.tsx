@@ -36,7 +36,7 @@ export default function Privacy() {
           <li>Your IP address, browser or device type, and the approximate country we work out from your IP address. We use the country to choose your currency, prices and a default voice.</li>
           <li>Cookies and similar technologies that keep you signed in and remember preferences (see section 6).</li>
         </Ul>
-        <p><strong>From other services:</strong> if you choose “Continue with Google” or “Continue with Apple”, we receive your name and email address from them. Apple may give us a private relay email address instead of your own.</p>
+        <p><strong>From other services:</strong> if you choose “Continue with Google”, we receive your name and email address from Google.</p>
       </Section>
 
       <Section n={3} title="How we use your information">
@@ -58,7 +58,7 @@ export default function Privacy() {
         <Ul>
           <li><strong>Paystack</strong> to take card payments and top-ups.</li>
           <li><strong>Microsoft Azure Speech</strong> to turn text into audio. The text you ask us to read aloud is sent to it to produce the voice.</li>
-          <li><strong>Google</strong> (AdSense and AdMob) to show ads to non-subscribers, and for “Sign in with Google”. <strong>Apple</strong> for “Sign in with Apple”.</li>
+          <li><strong>Google</strong> (AdSense and AdMob) to show ads to non-subscribers, and for “Sign in with Google”.</li>
           <li>Our hosting, email delivery and security providers.</li>
           <li><strong>Publishers</strong>, who receive only the information needed to report and pay for sales of their books.</li>
           <li>Authorities, courts or professional advisers when the law requires it or to protect our rights and users.</li>
