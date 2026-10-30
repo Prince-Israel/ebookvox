@@ -20,3 +20,6 @@ Same route, `YOUVERSION_APP_KEY` in the server `.env` (sent as `X-YVP-App-Key` t
 
 ## Still locked
 NKJV, NLT, AMPC and Mirror are on neither service's plan for these keys (NKJV and NLT need their publishers' approval); TPT waits for the YouVersion licence. They show as "licence needed".
+
+## Listen
+"Listen to this chapter" (and "Listen from verse N" in the verse sheet) reads the chapter with the app's own voices through `openDoc` (kind `bible`), one verse per passage, highlighting the verse being read and moving on to the next chapter by itself. Same rules as books: sign-in required, reward video for free listeners, speed and voice from the player (`Voice & speed`). Works for every version on the page.

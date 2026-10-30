@@ -1,8 +1,11 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Link2, Lock, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, Headphones, Link2, Lock, Pause, Play, Search, Settings2 } from "lucide-react";
 import { Banner, Button, PageTitle, Sheet, Skeleton, cx } from "@/components/ui";
 import { api } from "@/lib/client";
+import { useAuth } from "@/components/UserContext";
+import { usePlayback } from "@/components/audio/PlaybackProvider";
 import { BIBLE_VERSIONS, type BibleBook, type Seg, type StrongsEntry, type Verse, type XRef } from "@/lib/bible";
 
 type Hit = { b: number; c: number; v: number; text: string };
@@ -45,6 +48,35 @@ export default function BiblePage() {
   }, []);
 
   const meta = books[book - 1];
+
+  // ---- listen: the chapter is read aloud by the app's voices, one verse per passage ----
+  const { user } = useAuth();
+  const router = useRouter();
+  const pb = usePlayback();
+  const autoNext = useRef(false);
+  const startFrom = useRef(0);
+  const docId = `bible-${version}-${book}-${chapter}`;
+  const mine = pb.session?.kind === "doc" && pb.session.doc.id === docId;
+  const speaking = mine && (pb.engine.playing || pb.engine.loading) ? (startFrom.current ? text?.filter((t) => t.v >= startFrom.current) : text)?.[(pb.chunks[pb.engine.index]?.block ?? 0) - 1]?.v ?? null : null;
+  const listen = useCallback((fromVerse = 0, autoplay = true) => {
+    if (!text || !meta) return;
+    if (!user) { router.push(`/sign-in?next=${encodeURIComponent("/bible")}`); return; }
+    startFrom.current = fromVerse;
+    const verses = fromVerse ? text.filter((t) => t.v >= fromVerse) : text;
+    const body = [`# ${meta.name}, chapter ${chapter}`, ...verses.map((t) => t.segs.map((s) => s[0]).join(""))].join("\n\n");
+    pb.openDoc({ id: docId, title: `${meta.name} ${chapter} (${version})`, kind: "bible", text: body }, autoplay, false);
+  }, [text, meta, user, router, pb, docId, chapter, version]);
+  useEffect(() => {
+    const done = (e: Event) => {
+      if ((e as CustomEvent).detail?.id !== docId) return;
+      autoNext.current = true;
+      step(1);
+    };
+    window.addEventListener("ev:bible-finished", done);
+    return () => window.removeEventListener("ev:bible-finished", done);
+  }); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (text && autoNext.current) { autoNext.current = false; listen(0, true); } }, [text]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (speaking) document.getElementById(`v${speaking}`)?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [speaking]);
   useEffect(() => {
     let live = true;
     setText(null); setError(false); setCopyright("");
@@ -108,13 +140,23 @@ export default function BiblePage() {
             <label className="flex items-center gap-2"><input type="checkbox" checked={strongs} onChange={(e) => { setStrongs(e.target.checked); store.set("bible-strongs", e.target.checked ? "1" : "0"); }} /> Tap words for Strong's concordance{selected.id !== "KJV" && <span className="text-muted"> (KJV only)</span>}</label>
           </div>
 
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            {mine && (pb.engine.playing || pb.engine.loading) ? (
+              <Button onClick={() => pb.engine.pause()}><Pause className="size-4" /> Pause</Button>
+            ) : mine && pb.engine.ready ? (
+              <Button onClick={() => pb.engine.play()}><Play className="size-4" /> Resume listening</Button>
+            ) : (
+              <Button onClick={() => listen()} disabled={!text}><Headphones className="size-4" /> Listen to this chapter</Button>
+            )}
+            {mine && <Button variant="secondary" onClick={pb.openFull}><Settings2 className="size-4" /> Voice &amp; speed</Button>}
+          </div>
           <h2 className="mb-3 text-2xl font-bold">{meta?.name} {chapter}</h2>
           {error ? <Banner tone="danger" action={<Button size="sm" onClick={() => go(book, chapter)}>Try again</Button>}>{errMsg || "We couldn't load this chapter."}</Banner>
             : !text ? <div className="space-y-2">{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-6" />)}</div>
             : (
               <article className="font-serif text-lg leading-8">
                 {text.map(({ v, label, segs }) => (
-                  <p key={v} className={cx("mb-2", hl === v && "rounded-lg bg-accent-soft px-2")}>
+                  <p key={v} id={`v${v}`} className={cx("mb-2 scroll-mt-24", (hl === v || speaking === v) && "rounded-lg bg-accent-soft px-2")}>
                     <button onClick={() => setVerse(v)} aria-label={`Verse ${label}: cross-references`} className="mr-1.5 align-super text-xs font-bold text-accent">{label}</button>
                     {segs.map(([t, s, f], j) => {
                       const cls = cx(red && selected.red !== false && f & 1 && "text-[#c62828]", f & 2 && "italic", f & 4 && "uppercase tracking-wide text-[0.9em]");
@@ -135,6 +177,7 @@ export default function BiblePage() {
       <p className="mb-10 text-xs text-muted">King James Version (public domain) with Strong's numbers from the CrossWire/OpenScriptures project. Strong's dictionary: OpenScriptures, CC-BY-SA. Cross-references: openbible.info, CC-BY.</p>
 
       <Sheet open={verse !== null} onClose={() => setVerse(null)} title={verse ? `${meta?.name} ${chapter}:${verse}` : ""}>
+        <Button className="mb-5 w-full" onClick={() => { const v = verse; setVerse(null); if (v) listen(v); }}><Headphones className="size-4" /> Listen from verse {verse}</Button>
         <h3 className="mb-3 flex items-center gap-2 font-semibold"><Link2 className="size-4" /> Cross-references</h3>
         {(xrefs[`${chapter}:${verse}`] ?? []).length === 0 ? <p className="text-muted">No cross-references for this verse.</p> : (
           <ul className="flex flex-wrap gap-2">

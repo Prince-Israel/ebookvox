@@ -251,6 +251,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     onTick: (_i, t) => { if (sessionRef.current?.kind === "book") { progress.current.audioTime = t; dirty.current = true; } },
     onFinished: () => {
       const s = sessionRef.current;
+      if (s?.kind === "doc") { if (s.doc.kind === "bible") window.dispatchEvent(new CustomEvent("ev:bible-finished", { detail: { id: s.doc.id } })); return; }
       if (s?.kind !== "book") return;
       if (s.chapterIdx < s.meta.chapters.length - 1) goChapter(s.chapterIdx + 1, true);
       else { record({ percent: 100, paragraphIndex: 0, audioTime: 0 }); flush(); window.dispatchEvent(new CustomEvent("ev:book-finished", { detail: { title: s.meta.book.title } })); }
@@ -302,9 +303,9 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   useEffect(() => backgroundAudio.onStopRequested(() => engine.pause()), [engine]);
 
   // the mini player is for being somewhere else: it hides on the page that already shows this session in full on desktop
-  const onOwnPage = session?.kind === "book" ? pathname === `/read/${session.id}` : session?.kind === "doc" ? pathname === "/home" : false;
+  const onOwnPage = session?.kind === "book" ? pathname === `/read/${session.id}` : session?.kind === "doc" ? pathname === (session.doc.kind === "bible" ? "/bible" : "/home") : false;
   const active = !!session && (engine.count > 0 || engine.loading);
-  const go = () => { if (session?.kind === "book" && !onOwnPage) router.push(`/read/${session.id}`); else if (session?.kind === "doc" && !onOwnPage) router.push("/home#reader"); else setFull(true); };
+  const go = () => { if (session?.kind === "book" && !onOwnPage) router.push(`/read/${session.id}`); else if (session?.kind === "doc" && !onOwnPage) router.push(session.doc.kind === "bible" ? "/bible" : "/home#reader"); else setFull(true); };
 
   // what pages and the player buttons use: starting playback from a pause goes through the ad first
   const gated = useMemo(() => ({
