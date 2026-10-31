@@ -131,13 +131,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* mobile bottom nav */}
       <nav aria-label="Main" data-hide-on-kb style={{ bottom: "var(--ad-bottom, 0px)" }} className="safe-b fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur min-[740px]:hidden">
-        <ul className="mx-auto grid max-w-lg grid-cols-4">
+        <ul className="mx-auto grid max-w-lg grid-cols-5">
           {MAIN.map(({ href, label, Icon }) => (
             <li key={href}>
               <Link href={href} aria-current={active(href) ? "page" : undefined} className={cx("flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium transition", active(href) ? "text-accent" : "text-muted")}>
-                <span className={cx("relative grid h-8 w-14 place-items-center rounded-full transition", active(href) && "bg-accent-soft")}>
+                <span className={cx("relative grid h-8 w-12 place-items-center rounded-full transition", active(href) && "bg-accent-soft")}>
                   <Icon className="size-6" strokeWidth={active(href) ? 2.4 : 1.9} />
-                  {href === "/profile" && supportUnread > 0 && <span className="absolute right-3 top-0.5 size-2.5 rounded-full bg-accent ring-2 ring-surface" aria-hidden />}
+                  {href === "/profile" && supportUnread > 0 && <span className="absolute right-2 top-0.5 size-2.5 rounded-full bg-accent ring-2 ring-surface" aria-hidden />}
                 </span>
                 {label}
               </Link>
